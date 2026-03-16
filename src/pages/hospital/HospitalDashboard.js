@@ -13,9 +13,10 @@ function calcComparibilityScore(req, donor) {
 }
 
 export default function HospitalDashboard() {
-  const { currentUser, donors, requests, createRequest } = useAuth();
+  const { currentUser, donors, requests, createRequest, completeRequest } = useAuth();
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [notificationStatus, setNotificationStatus] = useState(null);
+  const [completionStatus, setCompletionStatus] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({
     bloodGroup: 'A+',
@@ -26,6 +27,10 @@ export default function HospitalDashboard() {
 
   const hospitalRequests = requests.filter((r) => r.hospitalId === currentUser?.id);
   const sentRequests = requests.filter((r) => r.status === 'Sent');
+  const acceptedRequests = hospitalRequests.filter((r) => r.status === 'Accepted');
+  const hospitalAlerts = hospitalRequests
+    .flatMap((request) => (request.hospitalNotifications || []).map((alert) => ({ ...alert, requestId: request.id })))
+    .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
 
   const handleChange = (e) => {
     setFormData((prev) => ({
@@ -54,7 +59,7 @@ export default function HospitalDashboard() {
       // Show notification status
       setNotificationStatus({
         success: true,
-        message: `✅ Request created! Sending notifications to ${request.bloodGroup} donors via email and SMS...`,
+        message: `✅ Request created! Notifications are sent only to matching donors (${request.bloodGroup}, ${request.location}).`,
         requestId: request.id,
         sentNotifications: updatedRequest.notificationsSent || [],
       });
@@ -78,43 +83,128 @@ export default function HospitalDashboard() {
   };
 
   const matchingDonors = donors
-    .filter((d) => d.available)
+    .filter((d) => {
+      if (d.available !== true) return false;
+      if (!d.cooldownActive || !d.nextEligibleDate) return true;
+      return new Date(d.nextEligibleDate).getTime() <= Date.now();
+    })
     .map((d) => ({
       ...d,
       score: calcComparibilityScore(formData, d),
     }))
     .sort((a, b) => b.score - a.score);
 
+  const handleConfirmDonation = (request) => {
+    completeRequest(request.id);
+    setCompletionStatus(
+      `Donation confirmed for ${request.bloodGroup} (${request.quantity} unit). Donor points are updated and donor is marked unavailable for 2 months.`
+    );
+    setTimeout(() => setCompletionStatus(null), 4000);
+  };
+
+  const dashboardStats = [
+    { label: 'Active Requests', value: sentRequests.length },
+    { label: 'Available Donors', value: donors.filter((d) => d.available).length },
+    { label: 'My Requests', value: hospitalRequests.length },
+    { label: 'Completed', value: requests.filter((r) => r.status === 'Completed').length },
+  ];
+
   return (
-    <div className="max-w-7xl mx-auto">
+    <div className="space-y-8">
+      <section className="page-hero">
+        <div className="relative z-10 grid gap-6 lg:grid-cols-[1.2fr_1fr] lg:items-end">
+          <div>
+            <span className="blood-pill bg-white/12 text-white">Hospital Control Room</span>
+            <h1 className="mt-4 font-display text-4xl font-extrabold md:text-6xl">Create requests and mobilize the right donors faster.</h1>
+            <p className="mt-4 max-w-2xl text-sm leading-7 text-white/78 md:text-base">Monitor request demand, review donor matches, and keep the hospital-side response workflow focused and visible.</p>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            {dashboardStats.map((stat) => (
+              <div key={stat.label} className="metric-card">
+                <div className="text-xs uppercase tracking-[0.2em] text-white/60">{stat.label}</div>
+                <div className="mt-2 text-4xl font-black">{stat.value}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* Stats */}
       <div className="grid md:grid-cols-4 gap-6 mb-8">
-        <div className="bg-gradient-to-br from-blue-50 to-cyan-50 rounded-xl p-6 border-2 border-blue-200">
+        <div className="surface-metric">
           <p className="text-sm text-gray-600 font-semibold uppercase">Active Requests</p>
           <p className="text-3xl font-bold text-blue-600">{sentRequests.length}</p>
         </div>
-        <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl p-6 border-2 border-green-200">
+        <div className="surface-metric">
           <p className="text-sm text-gray-600 font-semibold uppercase">Available Donors</p>
           <p className="text-3xl font-bold text-green-600">{donors.filter((d) => d.available).length}</p>
         </div>
-        <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl p-6 border-2 border-purple-200">
+        <div className="surface-metric">
           <p className="text-sm text-gray-600 font-semibold uppercase">My Requests</p>
           <p className="text-3xl font-bold text-purple-600">{hospitalRequests.length}</p>
         </div>
-        <div className="bg-gradient-to-br from-orange-50 to-red-50 rounded-xl p-6 border-2 border-orange-200">
+        <div className="surface-metric">
           <p className="text-sm text-gray-600 font-semibold uppercase">Completed</p>
           <p className="text-3xl font-bold text-orange-600">{requests.filter((r) => r.status === 'Completed').length}</p>
         </div>
       </div>
 
+      {hospitalAlerts.length > 0 && (
+        <div className="section-card mb-8 border-l-4 border-orange-500">
+          <h2 className="text-2xl font-bold text-gray-900 mb-4">Hospital Notifications</h2>
+          <div className="space-y-3">
+            {hospitalAlerts.slice(0, 8).map((alert) => (
+              <div key={alert.id} className="rounded-lg border border-orange-200 bg-orange-50 p-3">
+                <p className="text-sm font-semibold text-orange-900">{alert.message}</p>
+                <p className="mt-1 text-xs text-orange-700">
+                  Request ID: {alert.requestId} • {new Date(alert.timestamp).toLocaleString()}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {completionStatus && (
+        <div className="section-card mb-8 border-l-4 border-emerald-500 bg-emerald-50">
+          <p className="font-semibold text-emerald-900">✅ {completionStatus}</p>
+        </div>
+      )}
+
+      {acceptedRequests.length > 0 && (
+        <div className="section-card mb-8 border-l-4 border-blue-500">
+          <h2 className="text-2xl font-bold text-gray-900 mb-4">Accepted Donations Pending Hospital Confirmation</h2>
+          <div className="grid gap-4">
+            {acceptedRequests.map((req) => (
+              <div key={req.id} className="rounded-lg border border-blue-200 bg-blue-50 p-4">
+                <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                  <div>
+                    <p className="font-semibold text-blue-900">
+                      {req.bloodGroup} • {req.quantity} Unit(s) • {req.location}
+                    </p>
+                    <p className="text-sm text-blue-700">Accepted donor ID: {req.acceptedBy || 'N/A'}</p>
+                  </div>
+                  <button
+                    onClick={() => handleConfirmDonation(req)}
+                    className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-bold text-white hover:bg-emerald-700 transition"
+                  >
+                    Confirm Donation & Add Points
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="grid lg:grid-cols-2 gap-8 mb-8">
         {/* Create Request Form */}
-        <div className="bg-white rounded-xl p-6 border-2 border-gray-200 shadow-sm">
+        <div className="section-card">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-2xl font-bold text-gray-900">Create Emergency Request</h2>
             <button
               onClick={() => setShowCreateModal(true)}
-              className="px-4 py-2 bg-red-600 text-white rounded-lg font-bold hover:bg-red-700"
+              className="action-primary"
             >
               + New Request
             </button>
@@ -131,7 +221,7 @@ export default function HospitalDashboard() {
         </div>
 
         {/* Top Matching Donors */}
-        <div className="bg-white rounded-xl p-6 border-2 border-gray-200 shadow-sm">
+        <div className="section-card">
           <h2 className="text-2xl font-bold text-gray-900 mb-4">Top Matching Donors</h2>
           {matchingDonors.slice(0, 3).length === 0 ? (
             <p className="text-gray-600 text-center py-6">No available donors match this request</p>
@@ -157,7 +247,7 @@ export default function HospitalDashboard() {
       </div>
 
       {/* Hospital Requests */}
-      <div className="bg-white rounded-xl p-6 border-2 border-gray-200 shadow-sm mb-8">
+      <div className="section-card mb-8">
         <h2 className="text-2xl font-bold text-gray-900 mb-4">My Requests</h2>
         {hospitalRequests.length === 0 ? (
           <div className="text-center py-12">
@@ -174,7 +264,7 @@ export default function HospitalDashboard() {
       </div>
 
       {/* All Available Donors */}
-      <div className="bg-white rounded-xl p-6 border-2 border-gray-200 shadow-sm">
+      <div className="section-card">
         <h2 className="text-2xl font-bold text-gray-900 mb-4">All Available Donors</h2>
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
           {matchingDonors.length === 0 ? (
@@ -266,7 +356,7 @@ export default function HospitalDashboard() {
               name="bloodGroup"
               value={formData.bloodGroup}
               onChange={handleChange}
-              className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-red-500 focus:outline-none"
+              className="input-shell"
               required
             />
           </div>
@@ -279,7 +369,7 @@ export default function HospitalDashboard() {
               value={formData.quantity}
               onChange={handleChange}
               min="1"
-              className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-red-500 focus:outline-none"
+              className="input-shell"
               required
             />
           </div>
@@ -291,7 +381,7 @@ export default function HospitalDashboard() {
               name="location"
               value={formData.location}
               onChange={handleChange}
-              className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-red-500 focus:outline-none"
+              className="input-shell"
               required
             />
           </div>
@@ -302,7 +392,7 @@ export default function HospitalDashboard() {
               name="urgency"
               value={formData.urgency}
               onChange={handleChange}
-              className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-red-500 focus:outline-none"
+              className="input-shell"
             >
               <option>Low</option>
               <option>Medium</option>
@@ -313,7 +403,7 @@ export default function HospitalDashboard() {
 
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
             <p className="text-xs text-blue-800">
-              <strong>🩸 Smart Blood Group Notification:</strong> Donors with matching blood type will receive beautiful emails via EmailJS (FREE). Choose your contact preference to also receive SMS alerts!
+              <strong>🩸 Smart Matching Notification:</strong> Only donors with exact blood group and city match will be notified via their chosen contact preference.
             </p>
           </div>
 
@@ -332,7 +422,7 @@ export default function HospitalDashboard() {
             <button
               type="submit"
               disabled={isSubmitting}
-              className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg font-bold hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="action-primary flex-1 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {isSubmitting ? 'Sending...' : 'Send Request'}
             </button>

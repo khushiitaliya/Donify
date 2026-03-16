@@ -17,7 +17,7 @@ export default function SignupPage() {
     }));
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setError(null);
     setSuccess(null);
@@ -41,7 +41,7 @@ export default function SignupPage() {
       payload.contact = formData.contact;
     }
 
-    const result = signup(payload);
+    const result = await signup(payload);
     if (result.error) {
       setError(result.error);
       return;
@@ -54,21 +54,41 @@ export default function SignupPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-red-50 to-pink-100 flex items-center justify-center p-4 py-12">
-      <div className="bg-white rounded-xl shadow-2xl p-8 w-full max-w-2xl">
+    <div className="grid min-h-[calc(100vh-13rem)] gap-6 lg:grid-cols-[0.92fr_1.08fr] lg:items-start">
+      <section className="page-hero">
+        <div className="relative z-10 space-y-6">
+          <span className="blood-pill bg-white/12 text-white">Join The Network</span>
+          <h1 className="font-display text-4xl font-extrabold md:text-5xl">Create a donor or hospital profile built for emergency response.</h1>
+          <p className="max-w-xl text-sm leading-7 text-white/78 md:text-base">
+            Register once, keep your blood group and contact channels accurate, and move from signup to response-ready in minutes.
+          </p>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="metric-card">
+              <div className="text-xs uppercase tracking-[0.2em] text-white/65">Donor Flow</div>
+              <div className="mt-2 text-lg font-bold">Availability, badges, alerts</div>
+            </div>
+            <div className="metric-card">
+              <div className="text-xs uppercase tracking-[0.2em] text-white/65">Hospital Flow</div>
+              <div className="mt-2 text-lg font-bold">Request creation, donor matching</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="glass-panel rounded-[32px] p-6 shadow-2xl shadow-red-950/10 md:p-8">
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">Create Account</h1>
-          <p className="text-gray-600 mt-2">Join Donify and make a difference</p>
+          <h1 className="font-display text-3xl font-extrabold text-slate-900">Create Account</h1>
+          <p className="mt-2 text-sm text-slate-600">Join Donify and start coordinating life-saving responses.</p>
         </div>
 
         {error && (
-          <div className="mb-4 p-4 bg-red-50 border-l-4 border-red-500 text-red-700 rounded">
+          <div className="mb-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-red-700">
             {error}
           </div>
         )}
 
         {success && (
-          <div className="mb-4 p-4 bg-green-50 border-l-4 border-green-500 text-green-700 rounded">
+          <div className="mb-4 rounded-2xl border border-green-200 bg-green-50 p-4 text-green-700">
             {success}
           </div>
         )}
@@ -82,10 +102,10 @@ export default function SignupPage() {
                 setFormData({});
                 setError(null);
               }}
-              className={`flex-1 py-3 rounded-lg font-bold transition-all ${
+              className={`flex-1 rounded-2xl py-3 font-bold transition-all ${
                 role === r
-                  ? 'bg-red-600 text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  ? 'bg-gradient-to-r from-orange-500 to-red-600 text-white shadow-lg shadow-red-200'
+                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
               }`}
             >
               {r === 'Donor' ? '🩸 Donor' : '🏥 Hospital'}
@@ -103,7 +123,7 @@ export default function SignupPage() {
                   placeholder="Full Name"
                   value={formData.name || ''}
                   onChange={handleChange}
-                  className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-red-500 focus:outline-none"
+                  className="input-shell"
                   required
                 />
                 <input
@@ -112,7 +132,7 @@ export default function SignupPage() {
                   placeholder="Age"
                   value={formData.age || ''}
                   onChange={handleChange}
-                  className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-red-500 focus:outline-none"
+                  className="input-shell"
                   required
                 />
               </div>
@@ -123,7 +143,7 @@ export default function SignupPage() {
                   placeholder="Blood Group (A+, O-, etc.)"
                   value={formData.bloodGroup || ''}
                   onChange={handleChange}
-                  className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-red-500 focus:outline-none"
+                  className="input-shell"
                   required
                 />
                 <input
@@ -132,7 +152,7 @@ export default function SignupPage() {
                   placeholder="City/Location"
                   value={formData.location || ''}
                   onChange={handleChange}
-                  className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-red-500 focus:outline-none"
+                  className="input-shell"
                   required
                 />
               </div>
@@ -143,7 +163,7 @@ export default function SignupPage() {
                   placeholder="Phone/Email"
                   value={formData.contact || ''}
                   onChange={handleChange}
-                  className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-red-500 focus:outline-none"
+                  className="input-shell"
                   required
                 />
                 <input
@@ -152,7 +172,7 @@ export default function SignupPage() {
                   placeholder="Last Donation Date"
                   value={formData.lastDonationDate || ''}
                   onChange={handleChange}
-                  className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-red-500 focus:outline-none"
+                  className="input-shell"
                 />
               </div>
             </>
@@ -164,7 +184,7 @@ export default function SignupPage() {
                 placeholder="Hospital Name"
                 value={formData.hospitalName || ''}
                 onChange={handleChange}
-                className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-red-500 focus:outline-none"
+                className="input-shell"
                 required
               />
               <input
@@ -173,7 +193,7 @@ export default function SignupPage() {
                 placeholder="City/Location"
                 value={formData.location || ''}
                 onChange={handleChange}
-                className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-red-500 focus:outline-none"
+                className="input-shell"
                 required
               />
               <input
@@ -182,7 +202,7 @@ export default function SignupPage() {
                 placeholder="Contact Number"
                 value={formData.contact || ''}
                 onChange={handleChange}
-                className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-red-500 focus:outline-none"
+                className="input-shell"
                 required
               />
             </>
@@ -194,7 +214,7 @@ export default function SignupPage() {
             placeholder="Email Address"
             value={formData.email || ''}
             onChange={handleChange}
-            className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-red-500 focus:outline-none"
+            className="input-shell"
             required
           />
 
@@ -204,25 +224,25 @@ export default function SignupPage() {
             placeholder="Password (min 6 chars)"
             value={formData.password || ''}
             onChange={handleChange}
-            className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-red-500 focus:outline-none"
+            className="input-shell"
             required
           />
 
           <button
             type="submit"
-            className="w-full py-3 bg-red-600 text-white font-bold rounded-lg hover:bg-red-700 transition-colors"
+            className="action-primary w-full"
           >
             Create Account
           </button>
         </form>
 
         <div className="mt-6 text-center">
-          <p className="text-gray-600">Already have an account?</p>
-          <Link to="/login" className="text-red-600 font-bold hover:underline">
+          <p className="text-slate-600">Already have an account?</p>
+          <Link to="/login" className="font-bold text-red-700 hover:underline">
             Login Here
           </Link>
         </div>
-      </div>
+      </section>
     </div>
   );
 }

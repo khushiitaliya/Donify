@@ -35,34 +35,55 @@ export default function AdminDashboard() {
     filteredLogs = auditLogs.filter((log) => log.type === filterType);
   }
 
+  const summaryCards = [
+    { label: 'Total Donors', value: stats.totalDonors, subtext: `${stats.availableDonors} available now`, accent: 'text-blue-600' },
+    { label: 'Total Hospitals', value: stats.totalHospitals, subtext: 'Registered networks', accent: 'text-green-600' },
+    { label: 'Active Requests', value: stats.activeRequests, subtext: `${stats.acceptedRequests} accepted`, accent: 'text-red-600' },
+    { label: 'Completed', value: stats.completedRequests, subtext: `Success rate: ${requests.length > 0 ? Math.round((stats.completedRequests / requests.length) * 100) : 0}%`, accent: 'text-purple-600' },
+  ];
+
   return (
-    <div className="max-w-7xl mx-auto">
-      <div className="mb-8">
-        <h1 className="text-4xl font-bold text-gray-900 mb-2">Admin Dashboard</h1>
-        <p className="text-gray-600">System overview and analytics</p>
-      </div>
+    <div className="space-y-8">
+      <section className="page-hero">
+        <div className="relative z-10 grid gap-6 lg:grid-cols-[1.15fr_1fr] lg:items-end">
+          <div>
+            <span className="blood-pill bg-white/12 text-white">Admin Overview</span>
+            <h1 className="mt-4 font-display text-4xl font-extrabold md:text-6xl">See demand, participation, and system health in one view.</h1>
+            <p className="mt-4 max-w-2xl text-sm leading-7 text-white/78 md:text-base">Review operational trends, monitor the request funnel, and audit key events across the blood donation network.</p>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            {summaryCards.map((card) => (
+              <div key={card.label} className="metric-card">
+                <div className="text-xs uppercase tracking-[0.2em] text-white/60">{card.label}</div>
+                <div className="mt-2 text-4xl font-black">{card.value}</div>
+                <div className="mt-1 text-sm text-white/70">{card.subtext}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
 
       {/* Key Stats */}
       <div className="grid md:grid-cols-4 gap-6 mb-8">
-        <div className="bg-gradient-to-br from-blue-50 to-cyan-50 rounded-xl p-6 border-2 border-blue-200">
+        <div className="surface-metric">
           <p className="text-sm text-gray-600 font-semibold uppercase">Total Donors</p>
           <p className="text-4xl font-bold text-blue-600">{stats.totalDonors}</p>
           <p className="text-xs text-gray-600 mt-2">{stats.availableDonors} available now</p>
         </div>
 
-        <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl p-6 border-2 border-green-200">
+        <div className="surface-metric">
           <p className="text-sm text-gray-600 font-semibold uppercase">Total Hospitals</p>
           <p className="text-4xl font-bold text-green-600">{stats.totalHospitals}</p>
           <p className="text-xs text-gray-600 mt-2">Registered networks</p>
         </div>
 
-        <div className="bg-gradient-to-br from-red-50 to-pink-50 rounded-xl p-6 border-2 border-red-200">
+        <div className="surface-metric">
           <p className="text-sm text-gray-600 font-semibold uppercase">Active Requests</p>
           <p className="text-4xl font-bold text-red-600">{stats.activeRequests}</p>
           <p className="text-xs text-gray-600 mt-2">{stats.acceptedRequests} accepted</p>
         </div>
 
-        <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl p-6 border-2 border-purple-200">
+        <div className="surface-metric">
           <p className="text-sm text-gray-600 font-semibold uppercase">Completed</p>
           <p className="text-4xl font-bold text-purple-600">{stats.completedRequests}</p>
           <p className="text-xs text-gray-600 mt-2">Success rate: {requests.length > 0 ? Math.round((stats.completedRequests / requests.length) * 100) : 0}%</p>
@@ -71,7 +92,7 @@ export default function AdminDashboard() {
 
       <div className="grid lg:grid-cols-2 gap-8 mb-8">
         {/* Blood Group Demand */}
-        <div className="bg-white rounded-xl p-6 border-2 border-gray-200 shadow-sm">
+        <div className="section-card">
           <h2 className="text-2xl font-bold text-gray-900 mb-6">Blood Group Demand Trends</h2>
           {Object.keys(bloodGroupDemand).length === 0 ? (
             <div className="text-center py-12">
@@ -104,7 +125,7 @@ export default function AdminDashboard() {
         </div>
 
         {/* Top Donors */}
-        <div className="bg-white rounded-xl p-6 border-2 border-gray-200 shadow-sm">
+        <div className="section-card">
           <h2 className="text-2xl font-bold text-gray-900 mb-4">Top Donors</h2>
           {topDonors.filter((d) => d.donationCount > 0).length === 0 ? (
             <div className="text-center py-12">
@@ -139,14 +160,14 @@ export default function AdminDashboard() {
       </div>
 
       {/* Audit Logs */}
-      <div className="bg-white rounded-xl p-6 border-2 border-gray-200  shadow-sm">
+      <div className="section-card">
         <h2 className="text-2xl font-bold text-gray-900 mb-4">Audit Logs</h2>
 
         <div className="mb-4">
           <select
             value={filterType}
             onChange={(e) => setFilterType(e.target.value)}
-            className="px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-red-500 focus:outline-none"
+            className="input-shell max-w-xs"
           >
             <option>All</option>
             <option>login</option>

@@ -3,7 +3,6 @@ import { useAuth } from '../../context/AuthContext';
 import RequestCard from '../../components/RequestCard';
 import BadgeProgress from '../../components/BadgeProgress';
 import ContactPreferenceSelector from '../../components/ContactPreferenceSelector';
-import TestNotificationPanel from '../../components/TestNotificationPanel';
 import Modal from '../../components/Modal';
 
 export default function DonorDashboard() {
@@ -14,7 +13,21 @@ export default function DonorDashboard() {
   const [showEditProfile, setShowEditProfile] = useState(false);
   const [editForm, setEditForm] = useState({ phone: donor?.phone || '', email: donor?.email || '' });
 
-  const availableRequests = requests.filter((r) => r.status === 'Sent');
+  const normalizeText = (value) => (value || '').toString().trim().toLowerCase();
+  const cooldownEndDate = donor?.nextEligibleDate ? new Date(donor.nextEligibleDate) : null;
+  const isCooldownActive = Boolean(
+    donor?.cooldownActive && cooldownEndDate && cooldownEndDate.getTime() > Date.now()
+  );
+
+  const availableRequests = requests.filter((r) => {
+    if (r.status !== 'Sent') return false;
+    if (isCooldownActive) return false;
+    if (!donor?.available) return false;
+    const bloodMatch = normalizeText(r.bloodGroup) === normalizeText(donor?.bloodGroup);
+    const cityMatch = normalizeText(r.location) === normalizeText(donor?.location);
+    const alreadyRejected = (r.donorRejections || []).some((rejection) => rejection.donorId === donor?.id);
+    return bloodMatch && cityMatch && !alreadyRejected;
+  });
 
   const handleAccept = (request) => {
     setSelectedRequest(request);
@@ -26,18 +39,30 @@ export default function DonorDashboard() {
     setDonors((ds) =>
       ds.map((d) =>
         d.id === donor.id
-          ? { ...d, available: false, points: (d.points || 0) + 10 }
+          ? { ...d, available: false }
           : d
       )
     );
     setShowConsent(false);
     setNotifications((n) => [
-      { id: Date.now(), type: 'success', text: 'Your generous donation will save lives! ❤️' },
+      { id: Date.now(), type: 'success', text: 'Request accepted. Points will be added after hospital confirms completed donation.' },
       ...n,
     ]);
   };
 
   const toggleAvailability = () => {
+    if (isCooldownActive && !donor?.available) {
+      setNotifications((n) => [
+        {
+          id: Date.now(),
+          type: 'warning',
+          text: `You can mark available after ${cooldownEndDate.toLocaleDateString()}. Recovery period is 2 months from donation date.`,
+        },
+        ...n,
+      ]);
+      return;
+    }
+
     setDonors((ds) =>
       ds.map((d) =>
         d.id === donor.id ? { ...d, available: !d.available } : d
@@ -46,9 +71,9 @@ export default function DonorDashboard() {
   };
 
   const handleReject = (request) => {
-    rejectRequest(request.id);
+    rejectRequest({ requestId: request.id, donorId: donor.id, reason: 'Donor rejected request' });
     setNotifications((n) => [
-      { id: Date.now(), type: 'warning', text: 'Request declined' },
+      { id: Date.now(), type: 'warning', text: 'Request declined. Hospital was notified.' },
       ...n,
     ]);
   };
@@ -72,14 +97,40 @@ export default function DonorDashboard() {
     ]);
   };
 
+  const stats = [
+    { label: 'Points', value: donor.points || 0 },
+    { label: 'Badges', value: donor.badges?.length || 0 },
+    { label: 'Donation Records', value: donor.donationHistory?.length || 0 },
+    { label: 'Urgent Matches', value: availableRequests.length },
+  ];
+
   return (
-    <div className="max-w-7xl mx-auto">
+    <div className="space-y-8">
+      <section className="page-hero">
+        <div className="relative z-10 grid gap-6 lg:grid-cols-[1.2fr_0.95fr] lg:items-end">
+          <div>
+            <span className="blood-pill bg-white/12 text-white">Donor Dashboard</span>
+            <h1 className="mt-4 font-display text-4xl font-extrabold md:text-6xl">Stay ready for the next life-saving call.</h1>
+            <p className="mt-4 max-w-2xl text-sm leading-7 text-white/78 md:text-base">Manage your availability, review matching requests, and keep your contact channels and reward progress up to date.</p>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-2">
+            {stats.map((stat) => (
+              <div key={stat.label} className="metric-card">
+                <div className="text-xs uppercase tracking-[0.2em] text-white/60">{stat.label}</div>
+                <div className="mt-2 text-4xl font-black">{stat.value}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
       <div className="grid md:grid-cols-3 gap-6 mb-8">
         {/* Profile Summary */}
-        <div className="bg-white rounded-xl p-6 border-2 border-gray-200 shadow-sm">
-          <h2 className="text-xl font-bold text-gray-900 mb-4">Profile</h2>
+        <div className="section-card">
+          <div className="blood-pill mb-4">Profile</div>
+          <h2 className="text-xl font-bold text-gray-900 mb-4">Your Donor Readiness</h2>
           <div className="flex items-center space-x-4 mb-4">
-            <div className="w-16 h-16 bg-red-600 rounded-full flex items-center justify-center text-white text-3xl font-bold">
+            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-orange-500 to-red-700 text-3xl font-bold text-white shadow-lg shadow-red-200">
               {donor.name?.[0]}
             </div>
             <div>
@@ -95,6 +146,11 @@ export default function DonorDashboard() {
                 {donor.available ? 'Available' : 'Unavailable'}
               </span>
             </div>
+            {isCooldownActive && (
+              <div className="rounded-lg border border-orange-200 bg-orange-50 p-2 text-xs font-semibold text-orange-800">
+                Cooldown active until {cooldownEndDate.toLocaleDateString()}
+              </div>
+            )}
             <div className="flex items-center justify-between">
               <span className="text-sm text-gray-700">Age</span>
               <span className="font-semibold">{donor.age} years</span>
@@ -137,8 +193,9 @@ export default function DonorDashboard() {
         </div>
 
         {/* Donation History */}
-        <div className="bg-white rounded-xl p-6 border-2 border-gray-200 shadow-sm">
-          <h2 className="text-xl font-bold text-gray-900 mb-4">Donation History</h2>
+        <div className="section-card">
+          <div className="blood-pill mb-4">Donation History</div>
+          <h2 className="text-xl font-bold text-gray-900 mb-4">Recent Contributions</h2>
           {donor.donationHistory && donor.donationHistory.length > 0 ? (
             <div className="space-y-3">
               {donor.donationHistory.slice(0, 5).map((d) => (
@@ -162,7 +219,8 @@ export default function DonorDashboard() {
       </div>
 
       {/* Emergency Requests */}
-      <div className="bg-white rounded-xl p-6 border-2 border-gray-200 shadow-sm mb-8">
+      <div className="section-card mb-8">
+        <div className="blood-pill mb-4">Urgent Need</div>
         <h2 className="text-2xl font-bold text-gray-900 mb-4">Emergency Requests</h2>
         {availableRequests.length === 0 ? (
           <div className="text-center py-12">
@@ -188,9 +246,6 @@ export default function DonorDashboard() {
       <div className="mb-8">
         <ContactPreferenceSelector />
       </div>
-
-      {/* Test Notification Panel */}
-      <TestNotificationPanel />
 
       {/* Consent Modal */}
       <Modal
@@ -220,7 +275,7 @@ export default function DonorDashboard() {
           )}
 
           <p className="text-sm text-gray-700">
-            You will be marked unavailable for 56 days (standard donation cycle). Our team will contact you shortly with pickup details.
+            You will be marked unavailable for 2 months after a confirmed donation. Our team will contact you shortly with pickup details.
           </p>
 
           <div className="flex space-x-3 pt-4">

@@ -1,9 +1,9 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { initialData } from '../data/mockData';
-import NotificationService, { notificationServiceInstance } from '../services/NotificationService';
-import { findBestMatches } from '../services/bloodMatchingService';
+import NotificationService from '../services/NotificationService';
 
 const AuthContext = createContext();
+const API_BASE = process.env.REACT_APP_API_BASE_URL || 'http://localhost:5000';
 
 export const useAuth = () => useContext(AuthContext);
 
@@ -40,6 +40,20 @@ export const AuthProvider = ({ children }) => {
     return raw ? JSON.parse(raw) : [];
   });
 
+  const normalizeText = (value) => (value || '').toString().trim().toLowerCase();
+
+  const addMonthsToISOString = (isoDate, months) => {
+    const date = new Date(isoDate);
+    date.setMonth(date.getMonth() + months);
+    return date.toISOString();
+  };
+
+  const isDonorRequestEligible = (donor, referenceDate = new Date()) => {
+    if (donor.available !== true) return false;
+    if (!donor.cooldownActive) return true;
+    if (!donor.nextEligibleDate) return false;
+    return new Date(donor.nextEligibleDate).getTime() <= referenceDate.getTime();
+  };
   useEffect(() => {
     localStorage.setItem('donify_users', JSON.stringify(users));
   }, [users]);
@@ -64,20 +78,72 @@ export const AuthProvider = ({ children }) => {
     localStorage.setItem('donify_audits', JSON.stringify(auditLogs));
   }, [auditLogs]);
 
-  const login = (email, password) => {
+  // Keep MongoDB synchronized with data previously stored in localStorage.
+  useEffect(() => {
+    const controller = new AbortController();
+
+    const syncLocalDataToBackend = async () => {
+      try {
+        await fetch(`${API_BASE}/api/auth/sync-local-data`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ users, donors, hospitals, requests }),
+          signal: controller.signal,
+        });
+      } catch (error) {
+        // Ignore sync errors in UI; backend availability can vary during local dev.
+        console.warn('Local data sync skipped:', error.message);
+      }
+    };
+
+    const timeout = setTimeout(syncLocalDataToBackend, 500);
+    return () => {
+      clearTimeout(timeout);
+      controller.abort();
+    };
+  }, [users, donors, hospitals, requests]);
+
+  const login = async (email, password) => {
+    try {
+      const response = await fetch(`${API_BASE}/api/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.token) {
+          localStorage.setItem('donify_token', data.token);
+        }
+
+        const user = data.user;
+        setCurrentUser(user);
+
+        const logEntry = {
+          id: Date.now().toString(),
+          type: 'login',
+          by: user.id,
+          timestamp: new Date().toISOString(),
+          meta: { email: user.email, source: 'backend' },
+        };
+        setAuditLogs((a) => [logEntry, ...a]);
+        return { user };
+      }
+    } catch (error) {
+      // Fall back to legacy local login.
+    }
+
     const user = users.find((u) => u.email === email && u.password === password);
     if (!user) return { error: 'Invalid email or password' };
+
     setCurrentUser(user);
-    setNotifications((n) => [
-      { id: Date.now(), type: 'success', text: `Welcome back, ${user.name || user.hospitalName}!` },
-      ...n,
-    ]);
     const logEntry = {
       id: Date.now().toString(),
       type: 'login',
       by: user.id,
       timestamp: new Date().toISOString(),
-      meta: { email: user.email },
+      meta: { email: user.email, source: 'local' },
     };
     setAuditLogs((a) => [logEntry, ...a]);
     return { user };
@@ -87,53 +153,91 @@ export const AuthProvider = ({ children }) => {
     setCurrentUser(null);
   };
 
-  const signup = (payload) => {
+  const signup = async (payload) => {
     const exists = users.find((u) => u.email === payload.email);
     if (exists) return { error: 'Email already registered' };
-    
+
     if (!payload.password || payload.password.length < 6) {
       return { error: 'Password must be at least 6 characters' };
     }
 
-    const id = Date.now().toString();
-    const user = { id, ...payload };
-    setUsers((u) => [user, ...u]);
+    const normalizedRole = payload.role === 'Hospital' ? 'hospital' : 'donor';
+    const registerPayload = {
+      name: payload.role === 'Hospital' ? payload.hospitalName : payload.name,
+      email: payload.email,
+      password: payload.password,
+      role: normalizedRole,
+      phone: payload.contact,
+      location: payload.location,
+      bloodGroup: payload.bloodGroup,
+    };
 
-    if (payload.role === 'Donor') {
-      setDonors((d) => [
-        {
-          id,
-          name: payload.name,
-          age: payload.age,
-          bloodGroup: payload.bloodGroup,
-          location: payload.location,
-          contact: payload.contact,
-          lastDonationDate: payload.lastDonationDate || null,
-          nextEligibleDate: payload.lastDonationDate ? new Date(new Date(payload.lastDonationDate).getTime() + 56 * 24 * 60 * 60 * 1000).toISOString() : new Date().toISOString(),
-          available: true,
-          points: 0,
-          badges: [],
-          donationHistory: [],
-        },
-        ...d,
-      ]);
+    try {
+      const response = await fetch(`${API_BASE}/api/auth/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(registerPayload),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        const errorMessage = data?.message || data?.errors?.[0]?.msg || 'Registration failed';
+        return { error: errorMessage };
+      }
+
+      if (data.token) {
+        localStorage.setItem('donify_token', data.token);
+      }
+
+      const id = data.user?.id || Date.now().toString();
+      const user = {
+        id,
+        ...payload,
+        role: payload.role,
+      };
+
+      setUsers((u) => [user, ...u]);
+
+      if (payload.role === 'Donor') {
+        setDonors((d) => [
+          {
+            id,
+            name: payload.name,
+            age: payload.age,
+            bloodGroup: payload.bloodGroup,
+            location: payload.location,
+            contact: payload.contact,
+            lastDonationDate: payload.lastDonationDate || null,
+            nextEligibleDate: null,
+            cooldownActive: false,
+            availabilityRestoreNotifiedAt: null,
+            available: true,
+            points: 0,
+            badges: [],
+            donationHistory: [],
+          },
+          ...d,
+        ]);
+      }
+
+      if (payload.role === 'Hospital') {
+        setHospitals((h) => [
+          {
+            id,
+            name: payload.hospitalName,
+            location: payload.location,
+            contact: payload.contact,
+            email: payload.email,
+            createdAt: new Date().toISOString(),
+          },
+          ...h,
+        ]);
+      }
+
+      return { user };
+    } catch (error) {
+      return { error: 'Backend is not reachable. Please ensure backend is running.' };
     }
-
-    if (payload.role === 'Hospital') {
-      setHospitals((h) => [
-        {
-          id,
-          name: payload.hospitalName,
-          location: payload.location,
-          contact: payload.contact,
-          email: payload.email,
-          createdAt: new Date().toISOString(),
-        },
-        ...h,
-      ]);
-    }
-
-    return { user };
   };
 
   const createRequest = (req) => {
@@ -143,6 +247,7 @@ export const AuthProvider = ({ children }) => {
       createdAt: new Date().toISOString(),
       expiresAt: new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString(),
       notificationsSent: [],
+      hospitalNotifications: [],
       ...req,
     };
     setRequests((s) => [request, ...s]);
@@ -167,19 +272,41 @@ export const AuthProvider = ({ children }) => {
   };
 
   /**
-   * Send notifications to matching donors for a blood request
-   * SENDS ONLY ONCE per donor via their chosen contact method
-   * Also sends targeted emails to donors with matching blood groups via EmailJS
+   * Send notifications to matching donors for a blood request.
+   * Sends exactly once per request and only to donors with exact blood group + city match.
    */
   const sendNotificationsToMatchingDonors = async (request, donorsList) => {
     try {
-      // Find best matching donors
-      const matchingDonors = findBestMatches(request, donorsList, 10);
+      const matchingDonors = donorsList.filter((donor) => {
+        const hasContact = donor.contactPreference && (donor.phone || donor.email);
+        const exactBloodGroupMatch = normalizeText(donor.bloodGroup) === normalizeText(request.bloodGroup);
+        const exactCityMatch = normalizeText(donor.location) === normalizeText(request.location);
+        const isEligibleNow = isDonorRequestEligible(donor);
+        return hasContact && exactBloodGroupMatch && exactCityMatch && isEligibleNow;
+      });
 
       if (matchingDonors.length === 0) {
-        console.log('No matching donors found for request:', request.bloodGroup);
+        console.log('No matching donors found for request:', request.bloodGroup, request.location);
+        setRequests((rs) =>
+          rs.map((r) =>
+            r.id === request.id
+              ? {
+                  ...r,
+                  hospitalNotifications: [
+                    ...(r.hospitalNotifications || []),
+                    {
+                      id: `${Date.now()}-no-match`,
+                      type: 'no_matching_donor',
+                      message: `No available donor found for ${request.bloodGroup} in ${request.location}.`,
+                      timestamp: new Date().toISOString(),
+                    },
+                  ],
+                }
+              : r
+          )
+        );
         setNotifications((n) => [
-          { id: Date.now(), type: 'warning', text: `⚠️ No matching donors found for ${request.bloodGroup}` },
+          { id: Date.now(), type: 'warning', text: `⚠️ No matching donors found for ${request.bloodGroup} in ${request.location}` },
           ...n,
         ]);
         return;
@@ -219,6 +346,7 @@ export const AuthProvider = ({ children }) => {
                         {
                           requestId: request.id,
                           bloodGroup: request.bloodGroup,
+                          location: request.location,
                           method: result.method,
                           timestamp: new Date().toISOString(),
                         },
@@ -271,13 +399,14 @@ export const AuthProvider = ({ children }) => {
                 ...r, 
                 notificationsSent,
                 notifiedCount: successCount,
+                notifiedFilters: {
+                  bloodGroup: request.bloodGroup,
+                  location: request.location,
+                },
               } 
             : r
         )
       );
-
-      // Send targeted blood group notifications via EmailJS (in background)
-      sendBloodGroupNotifications(request, donorsList);
 
       // Show success notification
       if (successCount > 0) {
@@ -285,7 +414,7 @@ export const AuthProvider = ({ children }) => {
           {
             id: Date.now(),
             type: 'success',
-            text: `✅ Notifications sent to ${successCount} matching donor(s) via email and SMS`,
+            text: `✅ Notifications sent to ${successCount} donor(s) for ${request.bloodGroup} in ${request.location}`,
           },
           ...n,
         ]);
@@ -311,36 +440,6 @@ export const AuthProvider = ({ children }) => {
       ]);
     }
   };
-
-  /**
-   * Send targeted blood group emails via EmailJS
-   * Sends beautiful emails only to donors with matching blood groups
-   */
-  const sendBloodGroupNotifications = async (request, donorsList) => {
-    try {
-      console.log(`🩸 Sending blood group notifications for ${request.bloodGroup}...`);
-      
-      // Call the new blood group notification method
-      const result = await notificationServiceInstance.notifyDonorsByBloodGroup(donorsList, request);
-      
-      console.log(`✅ Blood group notifications completed: ${result.sent} sent, ${result.failed} failed`);
-      
-      if (result.sent > 0) {
-        setNotifications((n) => [
-          {
-            id: Date.now(),
-            type: 'success',
-            text: `📧 ${result.sent} email notification(s) sent to ${request.bloodGroup} donors via EmailJS`,
-          },
-          ...n,
-        ]);
-      }
-    } catch (error) {
-      console.error('Error sending blood group notifications:', error);
-      // Don't show error to user - this is a secondary notification system
-    }
-  };
-
 
   const acceptRequest = ({ requestId, donorId }) => {
     setRequests((rs) =>
@@ -374,11 +473,57 @@ export const AuthProvider = ({ children }) => {
     setAuditLogs((a) => [logEntry, ...a]);
   };
 
-  const rejectRequest = (requestId) => {
+  const rejectRequest = (input) => {
+    const requestId = typeof input === 'string' ? input : input?.requestId;
+    const donorId = typeof input === 'string' ? null : input?.donorId;
+    const reason = typeof input === 'string' ? 'Donor unavailable' : input?.reason || 'Donor unavailable';
+    const donor = donors.find((d) => d.id === donorId);
+    const donorName = donor?.name || 'A donor';
+    const eventTime = new Date().toISOString();
+
+    setRequests((rs) =>
+      rs.map((r) =>
+        r.id === requestId
+          ? {
+              ...r,
+              // Keep request open so other matching donors can still accept.
+              status: r.status === 'Sent' ? 'Sent' : r.status,
+              donorRejections: [
+                ...(r.donorRejections || []),
+                {
+                  donorId,
+                  donorName,
+                  reason,
+                  timestamp: eventTime,
+                },
+              ],
+              hospitalNotifications: [
+                ...(r.hospitalNotifications || []),
+                {
+                  id: `${Date.now()}-${donorId || 'unknown'}`,
+                  type: 'donor_unavailable',
+                  donorId,
+                  donorName,
+                  message: `${donorName} is not available for request ${r.bloodGroup} in ${r.location}.`,
+                  timestamp: eventTime,
+                },
+              ],
+            }
+          : r
+      )
+    );
     setNotifications((n) => [
-      { id: Date.now(), type: 'warning', text: 'Request rejected' },
+      { id: Date.now(), type: 'warning', text: 'Request declined. Hospital has been notified that you are unavailable.' },
       ...n,
     ]);
+    const logEntry = {
+      id: Date.now().toString(),
+      type: 'reject_request',
+      by: donorId,
+      timestamp: new Date().toISOString(),
+      meta: { requestId, donorId, reason },
+    };
+    setAuditLogs((a) => [logEntry, ...a]);
   };
 
   const markInProgress = (requestId) => {
@@ -399,25 +544,122 @@ export const AuthProvider = ({ children }) => {
   };
 
   const completeRequest = (requestId) => {
+    const targetRequest = requests.find((r) => r.id === requestId);
+    if (!targetRequest || targetRequest.status === 'Completed') {
+      return;
+    }
+
+    const completedAt = new Date().toISOString();
+    const nextEligibleDate = addMonthsToISOString(completedAt, 2);
+    const pointsAwarded = 10;
+    const donorId = targetRequest.acceptedBy;
+
     setRequests((rs) =>
       rs.map((r) =>
         r.id === requestId
-          ? { ...r, status: 'Completed', completedAt: new Date().toISOString() }
+          ? { ...r, status: 'Completed', completedAt }
           : r
       )
     );
+
+    if (donorId) {
+      setDonors((ds) =>
+        ds.map((d) =>
+          d.id === donorId
+            ? {
+                ...d,
+                lastDonationDate: completedAt,
+                nextEligibleDate,
+                cooldownActive: true,
+                availabilityRestoreNotifiedAt: null,
+                available: false,
+                points: (d.points || 0) + pointsAwarded,
+                donationHistory: [
+                  {
+                    id: `${Date.now()}-${requestId}`,
+                    requestId,
+                    date: completedAt,
+                    hospital: targetRequest.hospitalName || 'Hospital',
+                    units: targetRequest.quantity || 1,
+                  },
+                  ...(d.donationHistory || []),
+                ],
+              }
+            : d
+        )
+      );
+    }
+
     setNotifications((n) => [
-      { id: Date.now(), type: 'success', text: 'Request completed successfully!' },
+      {
+        id: Date.now(),
+        type: 'success',
+        text: donorId
+          ? `Donation confirmed by hospital. Donor awarded +${pointsAwarded} points and is unavailable until ${new Date(nextEligibleDate).toLocaleDateString()}.`
+          : 'Request completed successfully!',
+      },
       ...n,
     ]);
     const logEntry = {
       id: Date.now().toString(),
       type: 'complete',
-      timestamp: new Date().toISOString(),
-      meta: { requestId },
+      timestamp: completedAt,
+      meta: { requestId, donorId, pointsAwarded: donorId ? pointsAwarded : 0 },
     };
     setAuditLogs((a) => [logEntry, ...a]);
   };
+
+  // Auto-restore donor availability when 2-month cooldown completes.
+  useEffect(() => {
+    const restoreEligibleDonors = () => {
+      const now = new Date();
+      const restoredDonors = [];
+
+      setDonors((ds) =>
+        ds.map((d) => {
+          if (!d.cooldownActive || !d.nextEligibleDate) {
+            return d;
+          }
+
+          const cooldownCompleted = new Date(d.nextEligibleDate).getTime() <= now.getTime();
+          if (!cooldownCompleted) {
+            return d;
+          }
+
+          restoredDonors.push(d.name || d.id);
+          return {
+            ...d,
+            available: true,
+            cooldownActive: false,
+            availabilityRestoreNotifiedAt: now.toISOString(),
+          };
+        })
+      );
+
+      if (restoredDonors.length > 0) {
+        setNotifications((n) => [
+          {
+            id: Date.now(),
+            type: 'info',
+            text: `🩸 ${restoredDonors.join(', ')} can donate again now after the 2-month recovery period.`,
+          },
+          ...n,
+        ]);
+
+        const logEntry = {
+          id: Date.now().toString(),
+          type: 'auto_restore_availability',
+          timestamp: now.toISOString(),
+          meta: { donorNames: restoredDonors },
+        };
+        setAuditLogs((a) => [logEntry, ...a]);
+      }
+    };
+
+    restoreEligibleDonors();
+    const interval = setInterval(restoreEligibleDonors, 30 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, []);
 
   const cancelRequest = (requestId) => {
     setRequests((rs) =>

@@ -14,11 +14,11 @@ export default function BadgeProgress({ points, badges, maxPoints = 500 }) {
   const nextBadge = allBadges.find(b => !badges?.includes(b.name));
 
   return (
-    <div className="p-5 bg-gradient-to-r from-red-50 to-pink-50 rounded-lg border-2 border-red-200">
+    <div className="section-card bg-gradient-to-br from-red-50/90 to-orange-50/90">
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h3 className="text-sm uppercase tracking-wider text-gray-600 font-semibold">Donor Points</h3>
-          <p className="text-4xl font-bold text-red-600">{points}</p>
+          <h3 className="text-sm uppercase tracking-[0.22em] text-slate-500 font-semibold">Donor Points</h3>
+          <p className="text-4xl font-black text-red-700">{points}</p>
         </div>
         <div className="text-4xl text-center">
           {completedBadges.length > 0 ? completedBadges[completedBadges.length - 1].icon : '👤'}
@@ -27,13 +27,13 @@ export default function BadgeProgress({ points, badges, maxPoints = 500 }) {
 
       <div className="mb-4">
         <div className="flex items-center justify-between text-xs mb-2">
-          <span className="text-gray-700 font-medium">Progress to next badge</span>
-          <span className="text-gray-600">{progress}%</span>
+          <span className="text-slate-700 font-medium">Progress to next badge</span>
+          <span className="text-slate-500">{progress}%</span>
         </div>
-        <div className="w-full bg-gray-300 rounded-full h-3 overflow-hidden">
+        <div className="w-full rounded-full bg-red-100 h-3 overflow-hidden">
           <div
             style={{ width: `${progress}%` }}
-            className="h-3 bg-gradient-to-r from-red-500 to-red-600 transition-all duration-500"
+            className="h-3 bg-gradient-to-r from-orange-400 to-red-600 transition-all duration-500"
           ></div>
         </div>
       </div>
@@ -44,7 +44,7 @@ export default function BadgeProgress({ points, badges, maxPoints = 500 }) {
           {allBadges.map((badge) => (
             <div
               key={badge.name}
-              className={`p-2 rounded-lg text-center text-sm font-semibold flex flex-col items-center justify-center w-16 ${
+              className={`p-2 rounded-2xl text-center text-sm font-semibold flex flex-col items-center justify-center w-16 ${
                 badges?.includes(badge.name)
                   ? 'bg-yellow-200 text-yellow-900 border-2 border-yellow-400'
                   : 'bg-gray-200 text-gray-600 opacity-50 border-2 border-gray-300'

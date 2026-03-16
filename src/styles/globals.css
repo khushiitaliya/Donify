@@ -1,0 +1,259 @@
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&family=Sora:wght@300;400;500;600;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+  --bg-base: #fff7f5;
+  --bg-panel: rgba(255, 255, 255, 0.82);
+  --bg-panel-strong: rgba(19, 23, 32, 0.92);
+  --ink-strong: #141824;
+  --ink-soft: #5a6474;
+  --blood-red: #d83a3e;
+  --blood-dark: #8f111d;
+  --blood-glow: rgba(216, 58, 62, 0.16);
+  --ember: #f16822;
+  --line-soft: rgba(137, 29, 34, 0.12);
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+  background:
+    radial-gradient(circle at top left, rgba(248, 113, 113, 0.2), transparent 24%),
+    radial-gradient(circle at right 15%, rgba(239, 68, 68, 0.18), transparent 18%),
+    linear-gradient(180deg, #fff9f8 0%, #fff2ee 46%, #fff7f5 100%);
+}
+
+body {
+  font-family: 'Sora', sans-serif;
+  background: transparent;
+  color: var(--ink-strong);
+  min-height: 100vh;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+::selection {
+  background: rgba(216, 58, 62, 0.18);
+  color: #7a0e18;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #E63946;
+  border-radius: 4px;
+}
+
+@layer base {
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-family: 'Manrope', sans-serif;
+  }
+}
+
+@layer components {
+  .app-shell {
+    @apply relative min-h-screen overflow-hidden;
+  }
+
+  .app-shell::before,
+  .app-shell::after {
+    content: '';
+    position: absolute;
+    pointer-events: none;
+    border-radius: 9999px;
+    filter: blur(20px);
+    opacity: 0.7;
+  }
+
+  .app-shell::before {
+    width: 26rem;
+    height: 26rem;
+    top: -8rem;
+    right: -8rem;
+    background: radial-gradient(circle, rgba(248, 113, 113, 0.24), transparent 68%);
+  }
+
+  .app-shell::after {
+    width: 18rem;
+    height: 18rem;
+    bottom: 12rem;
+    left: -5rem;
+    background: radial-gradient(circle, rgba(249, 115, 22, 0.16), transparent 72%);
+  }
+
+  .glass-panel {
+    background: var(--bg-panel);
+    border: 1px solid rgba(255, 255, 255, 0.65);
+    box-shadow: 0 28px 60px rgba(80, 16, 20, 0.08);
+    backdrop-filter: blur(18px);
+  }
+
+  .glass-panel-dark {
+    background: linear-gradient(135deg, rgba(23, 27, 38, 0.96), rgba(35, 41, 57, 0.92));
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: 0 32px 70px rgba(5, 8, 15, 0.35);
+    backdrop-filter: blur(18px);
+  }
+
+  .section-card {
+    @apply glass-panel rounded-[28px] border border-white/70 p-6 md:p-8;
+  }
+
+  .page-hero {
+    @apply relative overflow-hidden rounded-[32px] px-6 py-8 text-white shadow-glow md:px-10 md:py-12;
+    background:
+      linear-gradient(135deg, rgba(14, 18, 29, 0.92), rgba(95, 11, 24, 0.86)),
+      radial-gradient(circle at left center, rgba(255, 255, 255, 0.12), transparent 24%),
+      linear-gradient(120deg, #530d15 0%, #9f1828 48%, #f16822 100%);
+  }
+
+  .page-hero::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background:
+      radial-gradient(circle at 18% 24%, rgba(255, 255, 255, 0.12), transparent 12%),
+      radial-gradient(circle at 82% 18%, rgba(255, 255, 255, 0.1), transparent 10%),
+      radial-gradient(circle at 72% 72%, rgba(255, 255, 255, 0.08), transparent 14%);
+    pointer-events: none;
+  }
+
+  .metric-card {
+    @apply rounded-[24px] p-5 text-white;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0.06));
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    backdrop-filter: blur(14px);
+  }
+
+  .surface-metric {
+    @apply rounded-[24px] border p-5;
+    border-color: var(--line-soft);
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(255, 249, 248, 0.86));
+    box-shadow: 0 20px 48px rgba(109, 24, 31, 0.07);
+  }
+
+  .action-primary {
+    @apply inline-flex items-center justify-center rounded-full px-5 py-3 font-semibold text-white transition duration-200;
+    background: linear-gradient(135deg, var(--ember), var(--blood-red));
+    box-shadow: 0 14px 30px rgba(216, 58, 62, 0.24);
+  }
+
+  .action-primary:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 18px 36px rgba(216, 58, 62, 0.32);
+  }
+
+  .action-secondary {
+    @apply inline-flex items-center justify-center rounded-full border px-5 py-3 font-semibold transition duration-200;
+    border-color: rgba(255, 255, 255, 0.44);
+    background: rgba(255, 255, 255, 0.08);
+  }
+
+  .action-secondary:hover {
+    background: rgba(255, 255, 255, 0.16);
+  }
+
+  .input-shell {
+    @apply w-full rounded-2xl border px-4 py-3 text-sm text-slate-900 outline-none transition duration-200;
+    border-color: rgba(137, 29, 34, 0.14);
+    background: rgba(255, 255, 255, 0.88);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+  }
+
+  .input-shell:focus {
+    border-color: rgba(216, 58, 62, 0.48);
+    box-shadow: 0 0 0 4px rgba(216, 58, 62, 0.12);
+  }
+
+  .section-heading {
+    @apply text-3xl font-extrabold tracking-tight text-slate-900;
+  }
+
+  .section-copy {
+    color: var(--ink-soft);
+  }
+
+  .blood-pill {
+    @apply inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.22em];
+    background: rgba(216, 58, 62, 0.12);
+    color: var(--blood-dark);
+  }
+
+  .status-chip {
+    @apply inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold;
+  }
+}
+
+/* Animations */
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.animate-slide-in {
+  animation: slideIn 0.3s ease-out;
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.5s ease-out;
+}
+
+@keyframes pulseFloat {
+  0%,
+  100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-8px);
+  }
+}
+
+.animate-pulse-float {
+  animation: pulseFloat 4.8s ease-in-out infinite;
+}

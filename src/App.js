@@ -30,14 +30,16 @@ function ProtectedRoute({ children, requiredRole }) {
 }
 
 function AppContent() {
+  const { currentUser } = useAuth();
+
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="app-shell">
       <Navbar />
-      <main className="max-w-7xl mx-auto px-4 py-8">
+      <main className="relative z-10 mx-auto w-full max-w-7xl px-4 pb-16 md:px-6">
         <Routes>
           <Route path="/" element={<Home />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/signup" element={<Signup />} />
+          <Route path="/login" element={currentUser ? <Navigate to={`/${currentUser.role.toLowerCase()}`} replace /> : <Login />} />
+          <Route path="/signup" element={currentUser ? <Navigate to={`/${currentUser.role.toLowerCase()}`} replace /> : <Signup />} />
           <Route path="/requests" element={<Requests />} />
           <Route path="/donors" element={<Donors />} />
           <Route path="/blockchain" element={<Blockchain />} />
@@ -69,7 +71,7 @@ function AppContent() {
             }
           />
 
-          <Route path="*" element={<Navigate to="/" replace />} />
+          <Route path="*" element={<Navigate to={currentUser ? '/' : '/login'} replace />} />
         </Routes>
       </main>
     </div>

@@ -19,20 +19,35 @@ export default function DonorsPage() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto">
-      <div className="mb-8">
-        <h1 className="text-4xl font-bold text-gray-900 mb-2">Donor Directory</h1>
-        <p className="text-gray-600">Find available donors in the network</p>
-      </div>
+    <div className="space-y-8">
+      <section className="page-hero">
+        <div className="relative z-10 grid gap-6 lg:grid-cols-[1.3fr_0.8fr] lg:items-end">
+          <div>
+            <span className="blood-pill bg-white/12 text-white">Directory</span>
+            <h1 className="mt-4 font-display text-4xl font-extrabold md:text-6xl">Find blood donors by type and location.</h1>
+            <p className="mt-4 max-w-2xl text-sm leading-7 text-white/78 md:text-base">Filter the network to surface available donors, compare readiness, and move emergency matches into action quickly.</p>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1">
+            <div className="metric-card">
+              <div className="text-xs uppercase tracking-[0.2em] text-white/65">Total Donors</div>
+              <div className="mt-2 text-4xl font-black">{donors.length}</div>
+            </div>
+            <div className="metric-card">
+              <div className="text-xs uppercase tracking-[0.2em] text-white/65">Available Now</div>
+              <div className="mt-2 text-4xl font-black">{donors.filter((donor) => donor.available).length}</div>
+            </div>
+          </div>
+        </div>
+      </section>
 
-      <div className="bg-white rounded-xl p-6 mb-6 border-2 border-gray-200">
+      <div className="section-card">
         <div className="grid md:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-2">Blood Group</label>
             <select
               value={filterBloodGroup}
               onChange={(e) => setFilterBloodGroup(e.target.value)}
-              className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-red-500 focus:outline-none"
+              className="input-shell"
             >
               {bloodGroups.map((bg) => (
                 <option key={bg} value={bg}>{bg}</option>
@@ -44,7 +59,7 @@ export default function DonorsPage() {
             <select
               value={filterLocation}
               onChange={(e) => setFilterLocation(e.target.value)}
-              className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-red-500 focus:outline-none"
+              className="input-shell"
             >
               {locations.map((loc) => (
                 <option key={loc} value={loc}>{loc}</option>
@@ -55,7 +70,7 @@ export default function DonorsPage() {
       </div>
 
       {filtered.length === 0 ? (
-        <div className="bg-white rounded-xl p-12 text-center border-2 border-gray-200">
+        <div className="section-card text-center">
           <p className="text-4xl mb-4">🔍</p>
           <h2 className="text-2xl font-bold text-gray-900 mb-2">No Donors Found</h2>
           <p className="text-gray-600">Try adjusting your filters</p>

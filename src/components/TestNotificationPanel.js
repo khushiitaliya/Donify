@@ -86,12 +86,15 @@ export default function TestNotificationPanel() {
   }
 
   return (
-    <div className="bg-white rounded-xl p-6 border-2 border-purple-200 shadow-sm mb-8">
+    <div className="section-card mb-8 border-purple-100/60">
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-xl font-bold text-gray-900">🧪 Test Notifications</h2>
+        <div>
+          <div className="blood-pill mb-2">Delivery Check</div>
+          <h2 className="text-xl font-bold text-gray-900">🧪 Test Notifications</h2>
+        </div>
         <button
           onClick={() => setShowLogs(!showLogs)}
-          className="text-xs px-3 py-1 bg-purple-100 text-purple-700 rounded-full font-bold hover:bg-purple-200"
+          className="rounded-full bg-purple-100 px-3 py-2 text-xs font-bold text-purple-700 hover:bg-purple-200"
         >
           {showLogs ? 'Hide' : 'Show'} Logs
         </button>
@@ -108,7 +111,7 @@ export default function TestNotificationPanel() {
           className={`flex-1 px-4 py-3 rounded-lg font-bold transition-colors ${
             isSending || (!currentUser.email && !currentUser.phone)
               ? 'bg-gray-300 text-gray-600 cursor-not-allowed'
-              : 'bg-purple-600 text-white hover:bg-purple-700'
+              : 'bg-purple-600 text-white hover:bg-purple-700 rounded-full'
           }`}
         >
           {isSending ? '⏳ Sending...' : '📨 Send Test Notification'}

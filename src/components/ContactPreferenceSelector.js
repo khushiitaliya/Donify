@@ -31,8 +31,9 @@ export default function ContactPreferenceSelector() {
   }
 
   return (
-    <div className="bg-white rounded-xl p-6 border-2 border-blue-200 shadow-sm mb-8">
+    <div className="section-card mb-8">
       <div className="mb-6">
+        <div className="blood-pill mb-3">Notification Routing</div>
         <h2 className="text-2xl font-bold text-gray-900 mb-2">
           📞 How to Receive Blood Requests?
         </h2>
@@ -45,7 +46,7 @@ export default function ContactPreferenceSelector() {
           className={`p-6 rounded-lg border-2 cursor-pointer transition-all ${
             preference === 'phone'
               ? 'border-blue-600 bg-blue-50'
-              : 'border-gray-300 bg-gray-50 hover:border-blue-300'
+              : 'border-gray-200 bg-white hover:border-blue-300'
           }`}
           onClick={() => setPreference('phone')}
         >
@@ -90,7 +91,7 @@ export default function ContactPreferenceSelector() {
           className={`p-6 rounded-lg border-2 cursor-pointer transition-all ${
             preference === 'email'
               ? 'border-green-600 bg-green-50'
-              : 'border-gray-300 bg-gray-50 hover:border-green-300'
+              : 'border-gray-200 bg-white hover:border-green-300'
           }`}
           onClick={() => setPreference('email')}
         >
@@ -132,7 +133,7 @@ export default function ContactPreferenceSelector() {
       </div>
 
       {/* Info Box */}
-      <div className="mt-6 bg-amber-50 border border-amber-200 rounded-lg p-4">
+      <div className="mt-6 rounded-2xl border border-amber-200 bg-amber-50 p-4">
         <p className="text-sm text-amber-800">
           <strong>ℹ️ Important:</strong> You will receive <strong>one notification per blood request</strong>. 
           Only choose this method if you have a valid phone number or email. We'll never spam you - only urgent blood requests matching your blood type will be sent.
@@ -169,7 +170,7 @@ export default function ContactPreferenceSelector() {
             (preference === 'phone' && !donor?.phone) ||
             (preference === 'email' && !donor?.email)
           }
-          className="px-6 py-2 bg-blue-600 text-white rounded-lg font-bold hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          className="rounded-full bg-blue-600 px-6 py-3 font-bold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
         >
           Save Preference
         </button>

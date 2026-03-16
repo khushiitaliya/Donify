@@ -11,18 +11,18 @@ export default function Modal({ open, title, children, onClose, size = 'md' }) {
   }[size];
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className={`bg-white rounded-lg shadow-2xl ${sizeClass} w-full max-h-[90vh] overflow-y-auto`}>
-        <div className="flex items-center justify-between p-6 border-b">
-          <h2 className="text-xl font-bold text-gray-900">{title}</h2>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/58 p-4 backdrop-blur-sm">
+      <div className={`glass-panel w-full max-h-[90vh] overflow-y-auto rounded-[28px] ${sizeClass}`}>
+        <div className="flex items-center justify-between border-b border-red-100/80 px-6 py-5">
+          <h2 className="font-display text-xl font-extrabold text-slate-900">{title}</h2>
           <button
             onClick={onClose}
-            className="text-gray-500 hover:text-gray-700 text-2xl font-light leading-none"
+            className="text-2xl font-light leading-none text-slate-500 transition hover:text-red-700"
           >
             ×
           </button>
         </div>
-        <div className="p-6">
+        <div className="px-6 py-6">
           {children}
         </div>
       </div>
