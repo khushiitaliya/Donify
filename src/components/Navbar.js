@@ -13,12 +13,18 @@ export default function Navbar() {
     navigate('/login');
   };
 
-  const navLinks = [
-    { label: 'Home', to: '/' },
-    { label: 'Blood Requests', to: '/requests' },
-    { label: 'Donors', to: '/donors' },
-    { label: 'Records', to: '/blockchain' },
-  ];
+  const normalizedRole = (currentUser?.role || '').toLowerCase();
+
+  const navLinks = currentUser
+    ? [
+        { label: 'Home', to: '/' },
+        { label: 'Blood Requests', to: '/requests' },
+        ...(normalizedRole === 'hospital' || normalizedRole === 'admin'
+          ? [{ label: 'Donors', to: '/donors' }]
+          : []),
+        { label: 'Records', to: '/blockchain' },
+      ]
+    : [{ label: 'Home', to: '/' }];
 
   const isActive = (to) => location.pathname === to;
 

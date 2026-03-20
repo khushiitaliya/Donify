@@ -1,11 +1,20 @@
 import React, { useState } from 'react';
+import { Link, Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import DonorCard from '../components/DonorCard';
 
 export default function DonorsPage() {
-  const { donors } = useAuth();
+  const { donors, currentUser } = useAuth();
   const [filterBloodGroup, setFilterBloodGroup] = useState('All');
   const [filterLocation, setFilterLocation] = useState('All');
+
+  if (!currentUser) {
+    return <Navigate to="/login" replace />;
+  }
+
+  if ((currentUser.role || '').toLowerCase() === 'donor') {
+    return <Navigate to="/donor" replace />;
+  }
 
   const bloodGroups = ['All', 'A+', 'A-', 'B+', 'B-', 'O+', 'O-', 'AB+', 'AB-'];
   const locations = ['All', ...new Set(donors.map((d) => d.location))];

@@ -1,9 +1,10 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import RequestCard from '../components/RequestCard';
 
 export default function RequestsPage() {
-  const { requests } = useAuth();
+  const { requests, currentUser } = useAuth();
 
   const activeRequests = requests.filter((r) => r.status !== 'Completed' && r.status !== 'Expired' && r.status !== 'Cancelled');
 
@@ -22,6 +23,21 @@ export default function RequestsPage() {
           </div>
         </div>
       </section>
+
+      {currentUser?.role === 'Hospital' && (
+        <div className="section-card border-l-4 border-red-500">
+          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-red-700">Hospital Action</p>
+              <h2 className="mt-1 text-2xl font-extrabold text-slate-900">Need to create a new blood request?</h2>
+              <p className="mt-2 text-sm text-slate-600">Request creation is available in Hospital Dashboard, then donors get notified automatically.</p>
+            </div>
+            <Link to="/hospital" className="action-primary whitespace-nowrap">
+              Go to Create Request
+            </Link>
+          </div>
+        </div>
+      )}
 
       {activeRequests.length === 0 ? (
         <div className="section-card text-center">

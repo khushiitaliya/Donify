@@ -29,6 +29,16 @@ export default function DonorDashboard() {
     return bloodMatch && cityMatch && !alreadyRejected;
   });
 
+  const donorRequestTimeline = requests
+    .filter((r) => {
+      const bloodMatch = normalizeText(r.bloodGroup) === normalizeText(donor?.bloodGroup);
+      const cityMatch = normalizeText(r.location) === normalizeText(donor?.location);
+      const acceptedByMe = r.acceptedBy === donor?.id;
+      const rejectedByMe = (r.donorRejections || []).some((rejection) => rejection.donorId === donor?.id);
+      return (bloodMatch && cityMatch) || acceptedByMe || rejectedByMe;
+    })
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
   const handleAccept = (request) => {
     setSelectedRequest(request);
     setShowConsent(true);
@@ -99,7 +109,7 @@ export default function DonorDashboard() {
 
   const stats = [
     { label: 'Points', value: donor.points || 0 },
-    { label: 'Badges', value: donor.badges?.length || 0 },
+    { label: 'LFT Tokens', value: donor.tokens || 0 },
     { label: 'Donation Records', value: donor.donationHistory?.length || 0 },
     { label: 'Urgent Matches', value: availableRequests.length },
   ];
@@ -218,14 +228,15 @@ export default function DonorDashboard() {
         <BadgeProgress points={donor.points} badges={donor.badges} />
       </div>
 
-      {/* Emergency Requests */}
+      {/* New Matching Requests */}
       <div className="section-card mb-8">
         <div className="blood-pill mb-4">Urgent Need</div>
-        <h2 className="text-2xl font-bold text-gray-900 mb-4">Emergency Requests</h2>
+        <h2 className="text-2xl font-bold text-gray-900 mb-2">New Matching Requests</h2>
+        <p className="mb-4 text-sm text-gray-600">Only active requests you can act on right now.</p>
         {availableRequests.length === 0 ? (
           <div className="text-center py-12">
             <p className="text-4xl mb-4">✅</p>
-            <p className="text-lg text-gray-600">No urgent requests at the moment</p>
+            <p className="text-lg text-gray-600">No new actionable requests at the moment</p>
           </div>
         ) : (
           <div className="grid gap-4">
@@ -238,6 +249,43 @@ export default function DonorDashboard() {
                 showActions={donor.available}
               />
             ))}
+          </div>
+        )}
+      </div>
+
+      {/* Blood Request History (Old + New) */}
+      <div className="section-card mb-8">
+        <div className="flex items-center justify-between gap-3 mb-4">
+          <div>
+            <div className="blood-pill mb-2">Timeline</div>
+            <h2 className="text-2xl font-bold text-gray-900">Blood Request History</h2>
+            <p className="mt-1 text-sm text-gray-600">Includes new, accepted, completed, expired, and previously seen requests.</p>
+          </div>
+          <div className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-700">
+            Total: {donorRequestTimeline.length}
+          </div>
+        </div>
+
+        {donorRequestTimeline.length === 0 ? (
+          <div className="text-center py-10">
+            <p className="text-gray-600">No request records available for your blood group and location yet.</p>
+          </div>
+        ) : (
+          <div className="grid gap-4">
+            {donorRequestTimeline.map((req) => {
+              const rejectedByMe = (req.donorRejections || []).some((rejection) => rejection.donorId === donor?.id);
+              const acceptedByMe = req.acceptedBy === donor?.id;
+              return (
+                <div key={`history-${req.id}`}>
+                  <RequestCard request={req} showActions={false} />
+                  {(acceptedByMe || rejectedByMe) && (
+                    <div className="mt-2 ml-2 text-xs font-semibold text-slate-600">
+                      {acceptedByMe ? 'Your response: Accepted' : 'Your response: Rejected'}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
       </div>

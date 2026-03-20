@@ -2,6 +2,7 @@ const express = require('express');
 const { body, validationResult } = require('express-validator');
 const User = require('../models/User');
 const BloodRequest = require('../models/BloodRequest');
+const Hospital = require('../models/Hospital');
 const Donation = require('../models/Donation');
 const { auth, authorize } = require('../middleware/auth');
 const router = express.Router();
@@ -67,7 +68,7 @@ router.post('/requests', auth, authorize('hospital'), [
   body('patientGender').isIn(['male', 'female', 'other']).withMessage('Invalid patient gender'),
   body('reason').trim().isLength({ min: 10 }).withMessage('Reason must be at least 10 characters'),
   body('contactPerson').trim().isLength({ min: 2 }).withMessage('Contact person is required'),
-  body('contactPhone').isMobilePhone().withMessage('Valid phone number is required')
+  body('contactPhone').trim().matches(/^[0-9+()\-\s]{8,20}$/).withMessage('Valid phone number is required')
 ], async (req, res) => {
   try {
     const errors = validationResult(req);
@@ -380,6 +381,118 @@ router.get('/stats', auth, authorize('hospital'), async (req, res) => {
       bloodGroupStats,
       monthlyTrends,
       urgencyStats
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Get all hospitals (public)
+router.get('/list', async (req, res) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+    const location = req.query.location;
+
+    const query = { isActive: true, verificationStatus: 'verified' };
+    if (location) {
+      query.location = location;
+    }
+
+    const hospitals = await Hospital.find(query)
+      .select('name email phone location hospitalType description hospitalLogo servicesOffered bloodInventory stats')
+      .skip(skip)
+      .limit(limit)
+      .sort({ createdAt: -1 });
+
+    const total = await Hospital.countDocuments(query);
+
+    res.json({
+      hospitals,
+      pagination: {
+        page,
+        limit,
+        total,
+        pages: Math.ceil(total / limit)
+      }
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Get hospital details by ID (public)
+router.get('/detail/:id', async (req, res) => {
+  try {
+    const hospital = await Hospital.findById(req.params.id)
+      .select('-password')
+      .populate('userId', 'email phone');
+
+    if (!hospital) {
+      return res.status(404).json({ message: 'Hospital not found' });
+    }
+
+    res.json(hospital);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Get logged-in hospital's profile
+router.get('/profile', auth, authorize('hospital'), async (req, res) => {
+  try {
+    const hospital = await Hospital.findOne({ userId: req.user._id })
+      .populate('userId', 'email phone');
+
+    if (!hospital) {
+      return res.status(404).json({ message: 'Hospital profile not found' });
+    }
+
+    res.json(hospital);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Update hospital profile
+router.put('/profile', auth, authorize('hospital'), [
+  body('contactPerson').optional().trim().isLength({ min: 2 }).withMessage('Contact person name must be at least 2 characters'),
+  body('contactPersonPhone').optional().trim().matches(/^[0-9+()\-\s]{8,20}$/).withMessage('Valid phone number is required'),
+  body('emergencyContact').optional().trim().isLength({ min: 2 }).withMessage('Emergency contact must be at least 2 characters'),
+  body('emergencyContactPhone').optional().trim().matches(/^[0-9+()\-\s]{8,20}$/).withMessage('Valid phone number is required'),
+  body('description').optional().trim().isLength({ max: 1000 }).withMessage('Description cannot exceed 1000 characters'),
+  body('hospitalType').optional().isIn(['Government', 'Private', 'NGO', 'Medical Institute']).withMessage('Invalid hospital type')
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const hospital = await Hospital.findOne({ userId: req.user._id });
+    if (!hospital) {
+      return res.status(404).json({ message: 'Hospital profile not found' });
+    }
+
+    const { contactPerson, contactPersonPhone, emergencyContact, emergencyContactPhone, description, hospitalType } = req.body;
+
+    if (contactPerson) hospital.contactPerson = contactPerson;
+    if (contactPersonPhone) hospital.contactPersonPhone = contactPersonPhone;
+    if (emergencyContact) hospital.emergencyContact = emergencyContact;
+    if (emergencyContactPhone) hospital.emergencyContactPhone = emergencyContactPhone;
+    if (description !== undefined) hospital.description = description;
+    if (hospitalType) hospital.hospitalType = hospitalType;
+
+    await hospital.save();
+
+    res.json({
+      message: 'Hospital profile updated successfully',
+      hospital
     });
   } catch (error) {
     console.error(error);

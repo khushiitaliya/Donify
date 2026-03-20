@@ -1,42 +1,55 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { initialData } from '../data/mockData';
 import NotificationService from '../services/NotificationService';
+import { createMintTransaction, createRedeemTransaction, TOKENS_PER_DONATION, getBadgesForPoints } from '../services/blockchainService';
 
 const AuthContext = createContext();
-const API_BASE = process.env.REACT_APP_API_BASE_URL || 'http://localhost:5000';
+const API_BASE = process.env.REACT_APP_API_BASE_URL || `${window.location.protocol}//${window.location.hostname}:5000`;
 
 export const useAuth = () => useContext(AuthContext);
 
+const STORAGE_VERSION = 'v2';
+
+const getVersionedKey = (key) => `${key}_${STORAGE_VERSION}`;
+const normalizeRole = (role) => (role || '').toString().trim().toLowerCase();
+
+// Clear any old-version keys so stale demo data never blocks fresh defaults.
+['donify_users', 'donify_donors', 'donify_hospitals', 'donify_requests', 'donify_audits'].forEach((key) => {
+  if (localStorage.getItem(key) !== null) {
+    localStorage.removeItem(key);
+  }
+});
+
 export const AuthProvider = ({ children }) => {
   const [users, setUsers] = useState(() => {
-    const raw = localStorage.getItem('donify_users');
+    const raw = localStorage.getItem(getVersionedKey('donify_users'));
     return raw ? JSON.parse(raw) : initialData.users;
   });
   
   const [donors, setDonors] = useState(() => {
-    const raw = localStorage.getItem('donify_donors');
+    const raw = localStorage.getItem(getVersionedKey('donify_donors'));
     return raw ? JSON.parse(raw) : initialData.donors;
   });
   
   const [hospitals, setHospitals] = useState(() => {
-    const raw = localStorage.getItem('donify_hospitals');
+    const raw = localStorage.getItem(getVersionedKey('donify_hospitals'));
     return raw ? JSON.parse(raw) : initialData.hospitals;
   });
   
   const [requests, setRequests] = useState(() => {
-    const raw = localStorage.getItem('donify_requests');
+    const raw = localStorage.getItem(getVersionedKey('donify_requests'));
     return raw ? JSON.parse(raw) : initialData.requests;
   });
   
   const [currentUser, setCurrentUser] = useState(() => {
-    const raw = localStorage.getItem('donify_current');
+    const raw = localStorage.getItem(getVersionedKey('donify_current'));
     return raw ? JSON.parse(raw) : null;
   });
   
   const [notifications, setNotifications] = useState([]);
   
   const [auditLogs, setAuditLogs] = useState(() => {
-    const raw = localStorage.getItem('donify_audits');
+    const raw = localStorage.getItem(getVersionedKey('donify_audits'));
     return raw ? JSON.parse(raw) : [];
   });
 
@@ -55,27 +68,27 @@ export const AuthProvider = ({ children }) => {
     return new Date(donor.nextEligibleDate).getTime() <= referenceDate.getTime();
   };
   useEffect(() => {
-    localStorage.setItem('donify_users', JSON.stringify(users));
+    localStorage.setItem(getVersionedKey('donify_users'), JSON.stringify(users));
   }, [users]);
   
   useEffect(() => {
-    localStorage.setItem('donify_donors', JSON.stringify(donors));
+    localStorage.setItem(getVersionedKey('donify_donors'), JSON.stringify(donors));
   }, [donors]);
   
   useEffect(() => {
-    localStorage.setItem('donify_hospitals', JSON.stringify(hospitals));
+    localStorage.setItem(getVersionedKey('donify_hospitals'), JSON.stringify(hospitals));
   }, [hospitals]);
   
   useEffect(() => {
-    localStorage.setItem('donify_requests', JSON.stringify(requests));
+    localStorage.setItem(getVersionedKey('donify_requests'), JSON.stringify(requests));
   }, [requests]);
   
   useEffect(() => {
-    localStorage.setItem('donify_current', JSON.stringify(currentUser));
+    localStorage.setItem(getVersionedKey('donify_current'), JSON.stringify(currentUser));
   }, [currentUser]);
   
   useEffect(() => {
-    localStorage.setItem('donify_audits', JSON.stringify(auditLogs));
+    localStorage.setItem(getVersionedKey('donify_audits'), JSON.stringify(auditLogs));
   }, [auditLogs]);
 
   // Keep MongoDB synchronized with data previously stored in localStorage.
@@ -179,9 +192,20 @@ export const AuthProvider = ({ children }) => {
         body: JSON.stringify(registerPayload),
       });
 
-      const data = await response.json();
+      const raw = await response.text();
+      let data = null;
+      try {
+        data = raw ? JSON.parse(raw) : null;
+      } catch (_parseError) {
+        data = null;
+      }
+
       if (!response.ok) {
-        const errorMessage = data?.message || data?.errors?.[0]?.msg || 'Registration failed';
+        const errorMessage =
+          data?.message ||
+          data?.errors?.[0]?.msg ||
+          (raw && raw.trim()) ||
+          `Registration failed (HTTP ${response.status})`;
         return { error: errorMessage };
       }
 
@@ -190,15 +214,27 @@ export const AuthProvider = ({ children }) => {
       }
 
       const id = data.user?.id || Date.now().toString();
+      const role = normalizeRole(data.user?.role || payload.role);
       const user = {
         id,
         ...payload,
-        role: payload.role,
+        role,
       };
+
+      const backendUser = data.user
+        ? {
+            ...data.user,
+            role,
+          }
+        : null;
+
+      if (backendUser) {
+        setCurrentUser(backendUser);
+      }
 
       setUsers((u) => [user, ...u]);
 
-      if (payload.role === 'Donor') {
+      if (role === 'donor') {
         setDonors((d) => [
           {
             id,
@@ -214,13 +250,15 @@ export const AuthProvider = ({ children }) => {
             available: true,
             points: 0,
             badges: [],
+            tokens: 0,
+            tokenTransactions: [],
             donationHistory: [],
           },
           ...d,
         ]);
       }
 
-      if (payload.role === 'Hospital') {
+      if (role === 'hospital') {
         setHospitals((h) => [
           {
             id,
@@ -234,13 +272,16 @@ export const AuthProvider = ({ children }) => {
         ]);
       }
 
-      return { user };
+      return { user: backendUser || user };
     } catch (error) {
-      return { error: 'Backend is not reachable. Please ensure backend is running.' };
+      if (error?.name === 'TypeError') {
+        return { error: 'Backend is not reachable. Please ensure backend is running.' };
+      }
+      return { error: error?.message || 'Registration failed unexpectedly.' };
     }
   };
 
-  const createRequest = (req) => {
+  const createRequest = async (req) => {
     const request = {
       id: Date.now().toString(),
       status: 'Sent',
@@ -250,6 +291,42 @@ export const AuthProvider = ({ children }) => {
       hospitalNotifications: [],
       ...req,
     };
+    
+    // Save to backend MongoDB
+    try {
+      const token = localStorage.getItem('donify_token');
+      const requestPayload = {
+        bloodGroup: request.bloodGroup,
+        quantity: request.quantity,
+        urgency: request.urgency || 'medium',
+        location: request.location,
+        patientName: request.patientName || 'Unknown',
+        patientAge: request.patientAge || 30,
+        patientGender: request.patientGender || 'other',
+        reason: request.reason || 'Urgent blood requirement',
+        contactPerson: request.contactPerson || currentUser?.name || 'Hospital',
+        contactPhone: request.phone || currentUser?.phone || '9999999999'
+      };
+
+      const response = await fetch(`${API_BASE}/api/hospitals/requests`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(requestPayload)
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log('Blood request saved to MongoDB:', data);
+      } else {
+        console.warn('Failed to save blood request to backend, but creating locally');
+      }
+    } catch (error) {
+      console.warn('Backend blood request save failed:', error.message);
+    }
+    
     setRequests((s) => [request, ...s]);
     setNotifications((n) => [
       { id: Date.now(), type: 'info', text: `Emergency request: ${request.bloodGroup} ${request.quantity}U needed` },
@@ -564,29 +641,37 @@ export const AuthProvider = ({ children }) => {
 
     if (donorId) {
       setDonors((ds) =>
-        ds.map((d) =>
-          d.id === donorId
-            ? {
-                ...d,
-                lastDonationDate: completedAt,
-                nextEligibleDate,
-                cooldownActive: true,
-                availabilityRestoreNotifiedAt: null,
-                available: false,
-                points: (d.points || 0) + pointsAwarded,
-                donationHistory: [
-                  {
-                    id: `${Date.now()}-${requestId}`,
-                    requestId,
-                    date: completedAt,
-                    hospital: targetRequest.hospitalName || 'Hospital',
-                    units: targetRequest.quantity || 1,
-                  },
-                  ...(d.donationHistory || []),
-                ],
-              }
-            : d
-        )
+        ds.map((d) => {
+          if (d.id !== donorId) return d;
+          const newPoints = (d.points || 0) + pointsAwarded;
+          const mintTx = createMintTransaction({
+            donorId: d.id,
+            donorName: d.name,
+            requestId,
+            amount: TOKENS_PER_DONATION,
+          });
+          const txEntry = {
+            id: `${Date.now()}-${requestId}`,
+            requestId,
+            date: completedAt,
+            hospital: targetRequest.hospitalName || 'Hospital',
+            units: targetRequest.quantity || 1,
+            txHash: mintTx.txHash,
+          };
+          return {
+            ...d,
+            lastDonationDate: completedAt,
+            nextEligibleDate,
+            cooldownActive: true,
+            availabilityRestoreNotifiedAt: null,
+            available: false,
+            points: newPoints,
+            badges: getBadgesForPoints(newPoints),
+            tokens: (d.tokens || 0) + TOKENS_PER_DONATION,
+            tokenTransactions: [mintTx, ...(d.tokenTransactions || [])],
+            donationHistory: [txEntry, ...(d.donationHistory || [])],
+          };
+        })
       );
     }
 
@@ -595,7 +680,7 @@ export const AuthProvider = ({ children }) => {
         id: Date.now(),
         type: 'success',
         text: donorId
-          ? `Donation confirmed by hospital. Donor awarded +${pointsAwarded} points and is unavailable until ${new Date(nextEligibleDate).toLocaleDateString()}.`
+          ? `Donation confirmed! Donor awarded +${pointsAwarded} pts & +${TOKENS_PER_DONATION} LFT tokens. Unavailable until ${new Date(nextEligibleDate).toLocaleDateString()}.`
           : 'Request completed successfully!',
       },
       ...n,
@@ -604,9 +689,49 @@ export const AuthProvider = ({ children }) => {
       id: Date.now().toString(),
       type: 'complete',
       timestamp: completedAt,
-      meta: { requestId, donorId, pointsAwarded: donorId ? pointsAwarded : 0 },
+      meta: { requestId, donorId, pointsAwarded: donorId ? pointsAwarded : 0, tokensAwarded: donorId ? TOKENS_PER_DONATION : 0 },
     };
     setAuditLogs((a) => [logEntry, ...a]);
+  };
+
+  const redeemReward = ({ donorId, reward }) => {
+    let success = false;
+    setDonors((ds) =>
+      ds.map((d) => {
+        if (d.id !== donorId) return d;
+        if ((d.tokens || 0) < reward.cost) return d; // insufficient tokens
+        const redeemTx = createRedeemTransaction({
+          donorId: d.id,
+          donorName: d.name,
+          rewardId: reward.id,
+          rewardName: reward.name,
+          amount: reward.cost,
+        });
+        success = true;
+        return {
+          ...d,
+          tokens: (d.tokens || 0) - reward.cost,
+          tokenTransactions: [redeemTx, ...(d.tokenTransactions || [])],
+          redeemedRewards: [
+            { rewardId: reward.id, rewardName: reward.name, redeemedAt: redeemTx.timestamp, txHash: redeemTx.txHash },
+            ...(d.redeemedRewards || []),
+          ],
+        };
+      })
+    );
+
+    if (success) {
+      setNotifications((n) => [
+        { id: Date.now(), type: 'success', text: `🎉 Redeemed "${reward.name}" for ${reward.cost} LFT tokens!` },
+        ...n,
+      ]);
+    } else {
+      setNotifications((n) => [
+        { id: Date.now(), type: 'error', text: `❌ Insufficient LFT tokens to redeem "${reward.name}".` },
+        ...n,
+      ]);
+    }
+    return success;
   };
 
   // Auto-restore donor availability when 2-month cooldown completes.
@@ -715,6 +840,7 @@ export const AuthProvider = ({ children }) => {
     markInProgress,
     completeRequest,
     cancelRequest,
+    redeemReward,
     sendNotificationsToMatchingDonors,
     setNotifications,
     setDonors,

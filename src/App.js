@@ -15,14 +15,18 @@ import HospitalDashboard from './pages/hospital/HospitalDashboard';
 import AdminDashboard from './pages/admin/AdminDashboard';
 
 // Protected Route Component
-function ProtectedRoute({ children, requiredRole }) {
+function ProtectedRoute({ children, requiredRole, requiredRoles }) {
   const { currentUser } = useAuth();
 
   if (!currentUser) {
     return <Navigate to="/login" replace />;
   }
 
-  if (requiredRole && currentUser.role !== requiredRole) {
+  if (requiredRole && currentUser.role?.toLowerCase() !== requiredRole.toLowerCase()) {
+    return <Navigate to="/" replace />;
+  }
+
+  if (requiredRoles && !requiredRoles.map((role) => role.toLowerCase()).includes(currentUser.role?.toLowerCase())) {
     return <Navigate to="/" replace />;
   }
 
@@ -40,14 +44,27 @@ function AppContent() {
           <Route path="/" element={<Home />} />
           <Route path="/login" element={currentUser ? <Navigate to={`/${currentUser.role.toLowerCase()}`} replace /> : <Login />} />
           <Route path="/signup" element={currentUser ? <Navigate to={`/${currentUser.role.toLowerCase()}`} replace /> : <Signup />} />
-          <Route path="/requests" element={<Requests />} />
-          <Route path="/donors" element={<Donors />} />
-          <Route path="/blockchain" element={<Blockchain />} />
+          <Route
+            path="/requests"
+            element={currentUser ? <Requests /> : <Navigate to="/login" replace />}
+          />
+          <Route
+            path="/donors"
+            element={
+              <ProtectedRoute requiredRoles={['hospital', 'admin']}>
+                <Donors />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/blockchain"
+            element={currentUser ? <Blockchain /> : <Navigate to="/login" replace />}
+          />
 
           <Route
             path="/donor"
             element={
-              <ProtectedRoute requiredRole="Donor">
+              <ProtectedRoute requiredRole="donor">
                 <DonorDashboard />
               </ProtectedRoute>
             }
@@ -56,7 +73,7 @@ function AppContent() {
           <Route
             path="/hospital"
             element={
-              <ProtectedRoute requiredRole="Hospital">
+              <ProtectedRoute requiredRole="hospital">
                 <HospitalDashboard />
               </ProtectedRoute>
             }
@@ -65,7 +82,7 @@ function AppContent() {
           <Route
             path="/admin"
             element={
-              <ProtectedRoute requiredRole="Admin">
+              <ProtectedRoute requiredRole="admin">
                 <AdminDashboard />
               </ProtectedRoute>
             }

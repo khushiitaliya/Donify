@@ -3,6 +3,7 @@ const jwt = require('jsonwebtoken');
 const { body, validationResult } = require('express-validator');
 const User = require('../models/User');
 const BloodRequest = require('../models/BloodRequest');
+const Hospital = require('../models/Hospital');
 const { auth } = require('../middleware/auth');
 const router = express.Router();
 
@@ -19,7 +20,7 @@ router.post('/register', [
   body('email').isEmail().normalizeEmail().withMessage('Please provide a valid email'),
   body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters long'),
   body('role').isIn(['donor', 'hospital']).withMessage('Role must be either donor or hospital'),
-  body('phone').optional().isMobilePhone().withMessage('Please provide a valid phone number'),
+  body('phone').optional().trim().matches(/^[0-9+()\-\s]{8,20}$/).withMessage('Please provide a valid phone number'),
   body('location').optional().trim().isLength({ min: 2 }).withMessage('Location must be at least 2 characters'),
   body('bloodGroup').optional().isIn(['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-']).withMessage('Invalid blood group')
 ], async (req, res) => {
@@ -59,6 +60,25 @@ router.post('/register', [
     });
 
     await user.save();
+
+    // Create Hospital record if role is hospital
+    if (role === 'hospital') {
+      const hospital = new Hospital({
+        userId: user._id,
+        name,
+        email,
+        phone,
+        location,
+        contactPerson: name, // Default to hospital name
+        contactPersonPhone: phone,
+        emergencyContact: name,
+        emergencyContactPhone: phone,
+        description: '',
+        hospitalType: 'Private'
+      });
+      await hospital.save();
+      console.log('Hospital record created:', hospital._id);
+    }
 
     // Generate token
     const token = generateToken(user._id);
@@ -147,7 +167,7 @@ router.get('/me', auth, async (req, res) => {
 // Update user profile
 router.put('/profile', auth, [
   body('name').optional().trim().isLength({ min: 2, max: 50 }).withMessage('Name must be between 2 and 50 characters'),
-  body('phone').optional().isMobilePhone().withMessage('Please provide a valid phone number'),
+  body('phone').optional().trim().matches(/^[0-9+()\-\s]{8,20}$/).withMessage('Please provide a valid phone number'),
   body('location').optional().trim().isLength({ min: 2 }).withMessage('Location must be at least 2 characters')
 ], async (req, res) => {
   try {

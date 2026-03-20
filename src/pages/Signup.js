@@ -47,9 +47,10 @@ export default function SignupPage() {
       return;
     }
 
-    setSuccess(`Account created! Redirecting to login...`);
+    const rolePath = (result.user?.role || payload.role || role).toString().toLowerCase();
+    setSuccess('Account created! Redirecting to your dashboard...');
     setTimeout(() => {
-      navigate('/login');
+      navigate(`/${rolePath}`);
     }, 1500);
   };
 

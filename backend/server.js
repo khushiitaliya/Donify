@@ -16,8 +16,24 @@ const app = express();
 
 // Security middleware
 app.use(helmet());
+const allowedOrigins = [
+  process.env.FRONTEND_URL,
+  'http://localhost:3000',
+  'http://localhost:3001',
+  'http://127.0.0.1:3000',
+  'http://127.0.0.1:3001'
+].filter(Boolean);
+
+const localDevOriginPattern = /^https?:\/\/(localhost|127\.0\.0\.1|192\.168\.\d{1,3}\.\d{1,3}|10\.\d{1,3}\.\d{1,3}\.\d{1,3})(:\d+)?$/;
+
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+  origin: (origin, callback) => {
+    // Allow non-browser tools (curl/postman), configured origin, and local/LAN dev origins.
+    if (!origin || allowedOrigins.includes(origin) || localDevOriginPattern.test(origin)) {
+      return callback(null, true);
+    }
+    return callback(new Error(`CORS blocked for origin: ${origin}`));
+  },
   credentials: true
 }));
 
@@ -72,8 +88,19 @@ app.use((req, res) => {
 
 const PORT = process.env.PORT || 5000;
 
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
+});
+
+server.on('error', (error) => {
+  if (error.code === 'EADDRINUSE') {
+    console.error(`Port ${PORT} is already in use. Backend is likely already running in another terminal.`);
+    console.error('Stop the existing process on this port or use a different PORT value in your environment.');
+    process.exit(1);
+  }
+
+  console.error('Server startup error:', error.message);
+  process.exit(1);
 });
 
 module.exports = app;

@@ -22,7 +22,12 @@ export default function HospitalDashboard() {
     bloodGroup: 'A+',
     quantity: 1,
     location: 'Downtown',
-    urgency: 'High',
+    urgency: 'medium',
+    patientName: '',
+    patientAge: 30,
+    patientGender: 'male',
+    reason: '',
+    contactPerson: '',
   });
 
   const hospitalRequests = requests.filter((r) => r.hospitalId === currentUser?.id);
@@ -43,11 +48,12 @@ export default function HospitalDashboard() {
     e.preventDefault();
     setIsSubmitting(true);
     try {
-      const request = createRequest({
+      const request = await createRequest({
         ...formData,
         hospitalId: currentUser.id,
-        hospitalName: currentUser.hospitalName,
+        hospitalName: currentUser.hospitalName || currentUser.name,
         quantity: parseInt(formData.quantity),
+        phone: currentUser.phone,
       });
       
       // Wait a moment for notifications to be processed
@@ -59,13 +65,13 @@ export default function HospitalDashboard() {
       // Show notification status
       setNotificationStatus({
         success: true,
-        message: `✅ Request created! Notifications are sent only to matching donors (${request.bloodGroup}, ${request.location}).`,
+        message: `✅ Request created and saved! Notifications are sent only to matching donors (${request.bloodGroup}, ${request.location}).`,
         requestId: request.id,
         sentNotifications: updatedRequest.notificationsSent || [],
       });
       
       // Reset form
-      setFormData({ bloodGroup: 'A+', quantity: 1, location: 'Downtown', urgency: 'High' });
+      setFormData({ bloodGroup: 'A+', quantity: 1, location: 'Downtown', urgency: 'medium', patientName: '', patientAge: 30, patientGender: 'male', reason: '', contactPerson: '' });
       
       // Close modal after delay
       setTimeout(() => {
@@ -171,6 +177,26 @@ export default function HospitalDashboard() {
         </div>
       )}
 
+      {/* CREATE REQUEST - PROMINENT SECTION */}
+      <div className="section-card mb-8 border-l-4 border-red-500 bg-gradient-to-r from-red-50 to-orange-50">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
+          <div>
+            <h2 className="text-3xl font-extrabold text-gray-900 mb-2">🆘 Create Emergency Request</h2>
+            <p className="text-gray-700 mb-2">Issue a blood request that will be sent to matching donors instantly</p>
+            <div className="text-sm text-gray-600">
+              <p>✅ Donors are notified based on blood group & location</p>
+              <p>✅ Last request: <strong>{formData.bloodGroup}</strong> • <strong>{formData.quantity} units</strong></p>
+            </div>
+          </div>
+          <button
+            onClick={() => setShowCreateModal(true)}
+            className="action-primary px-8 py-4 text-lg font-bold whitespace-nowrap h-fit"
+          >
+            + New Request
+          </button>
+        </div>
+      </div>
+
       {acceptedRequests.length > 0 && (
         <div className="section-card mb-8 border-l-4 border-blue-500">
           <h2 className="text-2xl font-bold text-gray-900 mb-4">Accepted Donations Pending Hospital Confirmation</h2>
@@ -198,31 +224,28 @@ export default function HospitalDashboard() {
       )}
 
       <div className="grid lg:grid-cols-2 gap-8 mb-8">
-        {/* Create Request Form */}
+        {/* Quick Stats Card */}
         <div className="section-card">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-2xl font-bold text-gray-900">Create Emergency Request</h2>
-            <button
-              onClick={() => setShowCreateModal(true)}
-              className="action-primary"
-            >
-              + New Request
-            </button>
-          </div>
-
-          <div className="space-y-3 text-sm">
-            <p className="text-gray-600">Quick form to create emergency blood requests</p>
-            <div className="p-4 bg-blue-50 border-l-4 border-blue-500 rounded">
-              <p className="text-blue-800">
-                <strong>Last Created:</strong> Blood group <strong>{formData.bloodGroup}</strong>, {formData.quantity} units
-              </p>
+          <h2 className="text-2xl font-bold text-gray-900 mb-4">📊 Quick Stats</h2>
+          <div className="space-y-3">
+            <div className="p-3 bg-blue-50 rounded-lg border-l-4 border-blue-500">
+              <p className="text-sm text-gray-600">Active Requests Network-wide</p>
+              <p className="text-2xl font-bold text-blue-700">{sentRequests.length}</p>
+            </div>
+            <div className="p-3 bg-green-50 rounded-lg border-l-4 border-green-500">
+              <p className="text-sm text-gray-600">Donors Available Now</p>
+              <p className="text-2xl font-bold text-green-700">{donors.filter((d) => d.available).length}</p>
+            </div>
+            <div className="p-3 bg-purple-50 rounded-lg border-l-4 border-purple-500">
+              <p className="text-sm text-gray-600">My Total Requests</p>
+              <p className="text-2xl font-bold text-purple-700">{hospitalRequests.length}</p>
             </div>
           </div>
         </div>
 
         {/* Top Matching Donors */}
         <div className="section-card">
-          <h2 className="text-2xl font-bold text-gray-900 mb-4">Top Matching Donors</h2>
+          <h2 className="text-2xl font-bold text-gray-900 mb-4">🎯 Top Matching Donors</h2>
           {matchingDonors.slice(0, 3).length === 0 ? (
             <p className="text-gray-600 text-center py-6">No available donors match this request</p>
           ) : (
@@ -297,7 +320,7 @@ export default function HospitalDashboard() {
           setNotificationStatus(null);
         }}
         title="Create Emergency Request"
-        size="md"
+        size="lg"
       >
         {notificationStatus && (
           <div
@@ -394,11 +417,90 @@ export default function HospitalDashboard() {
               onChange={handleChange}
               className="input-shell"
             >
-              <option>Low</option>
-              <option>Medium</option>
-              <option>High</option>
-              <option>Critical</option>
+              <option value="low">Low</option>
+              <option value="medium">Medium</option>
+              <option value="high">High</option>
+              <option value="critical">Critical</option>
             </select>
+          </div>
+
+          <div className="border-t border-gray-200 pt-4 mt-4">
+            <h3 className="text-sm font-bold text-gray-800 mb-4">👤 Patient Details</h3>
+            
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Patient Name</label>
+              <input
+                type="text"
+                name="patientName"
+                value={formData.patientName}
+                onChange={handleChange}
+                placeholder="e.g., Ram Kumar"
+                className="input-shell"
+                required
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 mt-3">
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Age</label>
+                <input
+                  type="number"
+                  name="patientAge"
+                  value={formData.patientAge}
+                  onChange={handleChange}
+                  min="1"
+                  max="120"
+                  placeholder="e.g., 35"
+                  className="input-shell"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Gender</label>
+                <select
+                  name="patientGender"
+                  value={formData.patientGender}
+                  onChange={handleChange}
+                  className="input-shell"
+                  required
+                >
+                  <option value="">Select</option>
+                  <option value="male">Male</option>
+                  <option value="female">Female</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="mt-3">
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Medical Reason</label>
+              <textarea
+                name="reason"
+                value={formData.reason}
+                onChange={handleChange}
+                placeholder="e.g., Post-surgery recovery, Accident victim, etc."
+                className="input-shell resize-none"
+                rows="2"
+                required
+              ></textarea>
+            </div>
+          </div>
+
+          <div className="border-t border-gray-200 pt-4 mt-4">
+            <h3 className="text-sm font-bold text-gray-800 mb-4">📞 Contact Person</h3>
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Contact Person Name</label>
+              <input
+                type="text"
+                name="contactPerson"
+                value={formData.contactPerson}
+                onChange={handleChange}
+                placeholder="e.g., Dr. Sharma"
+                className="input-shell"
+                required
+              />
+            </div>
           </div>
 
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
