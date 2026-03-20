@@ -72,8 +72,7 @@ export default function HomePage() {
               Donify connects blood donors with hospitals in real time. Whether you want to donate or need blood urgently — we make it fast, transparent, and life-saving.
             </p>
             <div className="flex flex-wrap gap-3">
-              <Link to="/signup" className="action-primary text-base px-7 py-3">Become a Donor</Link>
-              <Link to="/requests" className="action-secondary text-base px-7 py-3 text-white">View Live Requests</Link>
+              <Link to="/login" className="action-primary text-base px-7 py-3">Donor / Hospital Login & Sign Up</Link>
             </div>
           </div>
           <div className="grid grid-cols-2 gap-4">
@@ -81,7 +80,6 @@ export default function HomePage() {
               { label: 'Active Requests', value: activeRequests.length, color: 'from-red-600 to-rose-700' },
               { label: 'Available Donors', value: donors.filter((d) => d.available).length, color: 'from-orange-500 to-red-600' },
               { label: 'Partner Hospitals', value: hospitals.length, color: 'from-red-700 to-pink-700' },
-              { label: 'Lives Saved', value: '100+', color: 'from-rose-600 to-orange-600' },
             ].map(({ label, value, color }) => (
               <div key={label} className={`rounded-[24px] bg-gradient-to-br ${color} p-5 text-white shadow-lg`}>
                 <div className="text-3xl font-black">{value}</div>
@@ -118,9 +116,6 @@ export default function HomePage() {
                 <div key={f} className="rounded-2xl bg-red-50 p-3 text-center text-xs font-semibold text-red-700">{f}</div>
               ))}
             </div>
-            <Link to="/signup" className="inline-block mt-2 rounded-full bg-gradient-to-r from-red-600 to-orange-500 px-6 py-3 text-sm font-bold text-white shadow hover:opacity-90 transition">
-              Register as Donor
-            </Link>
           </div>
         </div>
       </section>
@@ -245,9 +240,6 @@ export default function HomePage() {
               </li>
             ))}
           </ul>
-          <Link to="/signup" className="inline-block rounded-full bg-red-600 px-6 py-2.5 text-sm font-bold text-white hover:bg-red-700 transition">
-            Join as Donor
-          </Link>
         </div>
         <div className="rounded-[28px] bg-white border border-orange-100 shadow-lg p-7 space-y-4">
           <div className="flex items-center gap-3">
@@ -266,9 +258,6 @@ export default function HomePage() {
               </li>
             ))}
           </ul>
-          <Link to="/signup" className="inline-block rounded-full bg-orange-500 px-6 py-2.5 text-sm font-bold text-white hover:bg-orange-600 transition">
-            Register Hospital
-          </Link>
         </div>
       </section>
 
@@ -279,12 +268,9 @@ export default function HomePage() {
         <p className="mt-3 text-white/80 max-w-xl mx-auto text-sm leading-7">
           Join thousands of donors and hospitals on Donify. Register today and become part of India's fastest growing voluntary blood donation network.
         </p>
-        <div className="mt-6 flex flex-wrap justify-center gap-4">
-          <Link to="/signup" className="rounded-full bg-white px-8 py-3 text-sm font-black uppercase tracking-widest text-red-700 shadow-lg hover:bg-orange-50 transition">
-            Register Now
-          </Link>
-          <Link to="/login" className="rounded-full border-2 border-white px-8 py-3 text-sm font-black uppercase tracking-widest text-white hover:bg-white/10 transition">
-            Login
+        <div className="mt-6">
+          <Link to="/login" className="rounded-full bg-white px-8 py-3 text-sm font-black uppercase tracking-widest text-red-700 shadow-lg hover:bg-orange-50 transition">
+            Donor / Hospital Login & Sign Up
           </Link>
         </div>
       </section>

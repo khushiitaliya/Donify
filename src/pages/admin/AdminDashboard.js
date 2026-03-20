@@ -1,22 +1,30 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
+import RequestCard from '../../components/RequestCard';
 
 export default function AdminDashboard() {
   const { donors, hospitals, requests, auditLogs } = useAuth();
   const [filterType, setFilterType] = useState('All');
 
+  const normalizeStatus = (status) => (status || '').toString().trim().toLowerCase();
+  const getRequestId = (request) => request.id || request._id;
+  const isHospitalRequest = (request) => Boolean(request.hospitalId || request.hospital || request.hospitalName);
+  const allHospitalRequests = requests
+    .filter(isHospitalRequest)
+    .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+
   const stats = {
     totalDonors: donors.length,
     availableDonors: donors.filter((d) => d.available).length,
     totalHospitals: hospitals.length,
-    activeRequests: requests.filter((r) => r.status === 'Sent').length,
-    acceptedRequests: requests.filter((r) => r.status === 'Accepted').length,
-    completedRequests: requests.filter((r) => r.status === 'Completed').length,
-    cancelledRequests: requests.filter((r) => r.status === 'Cancelled').length,
+    activeRequests: allHospitalRequests.filter((r) => ['sent', 'pending', 'accepted', 'in progress', 'in_progress'].includes(normalizeStatus(r.status))).length,
+    acceptedRequests: allHospitalRequests.filter((r) => normalizeStatus(r.status) === 'accepted').length,
+    completedRequests: allHospitalRequests.filter((r) => normalizeStatus(r.status) === 'completed').length,
+    cancelledRequests: allHospitalRequests.filter((r) => normalizeStatus(r.status) === 'cancelled').length,
   };
 
-  const bloodGroupDemand = requests.reduce((acc, r) => {
-    if (r.status !== 'Completed' && r.status !== 'Cancelled') {
+  const bloodGroupDemand = allHospitalRequests.reduce((acc, r) => {
+    if (!['completed', 'cancelled'].includes(normalizeStatus(r.status))) {
       acc[r.bloodGroup] = (acc[r.bloodGroup] || 0) + r.quantity;
     }
     return acc;
@@ -39,7 +47,7 @@ export default function AdminDashboard() {
     { label: 'Total Donors', value: stats.totalDonors, subtext: `${stats.availableDonors} available now`, accent: 'text-blue-600' },
     { label: 'Total Hospitals', value: stats.totalHospitals, subtext: 'Registered networks', accent: 'text-green-600' },
     { label: 'Active Requests', value: stats.activeRequests, subtext: `${stats.acceptedRequests} accepted`, accent: 'text-red-600' },
-    { label: 'Completed', value: stats.completedRequests, subtext: `Success rate: ${requests.length > 0 ? Math.round((stats.completedRequests / requests.length) * 100) : 0}%`, accent: 'text-purple-600' },
+    { label: 'Completed', value: stats.completedRequests, subtext: `Success rate: ${allHospitalRequests.length > 0 ? Math.round((stats.completedRequests / allHospitalRequests.length) * 100) : 0}%`, accent: 'text-purple-600' },
   ];
 
   return (
@@ -86,8 +94,28 @@ export default function AdminDashboard() {
         <div className="surface-metric">
           <p className="text-sm text-gray-600 font-semibold uppercase">Completed</p>
           <p className="text-4xl font-bold text-purple-600">{stats.completedRequests}</p>
-          <p className="text-xs text-gray-600 mt-2">Success rate: {requests.length > 0 ? Math.round((stats.completedRequests / requests.length) * 100) : 0}%</p>
+          <p className="text-xs text-gray-600 mt-2">Success rate: {allHospitalRequests.length > 0 ? Math.round((stats.completedRequests / allHospitalRequests.length) * 100) : 0}%</p>
         </div>
+      </div>
+
+      {/* All Hospital Requests */}
+      <div className="section-card mb-8">
+        <h2 className="text-2xl font-bold text-gray-900 mb-4">All Hospital Blood Requests</h2>
+        {allHospitalRequests.length === 0 ? (
+          <div className="text-center py-12">
+            <p className="text-gray-600">No hospital requests found</p>
+          </div>
+        ) : (
+          <div className="grid gap-4">
+            {allHospitalRequests.map((request) => (
+              <RequestCard
+                key={getRequestId(request)}
+                request={request}
+                showActions={false}
+              />
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="grid lg:grid-cols-2 gap-8 mb-8">

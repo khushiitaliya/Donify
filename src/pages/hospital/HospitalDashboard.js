@@ -30,9 +30,17 @@ export default function HospitalDashboard() {
     contactPerson: '',
   });
 
-  const hospitalRequests = requests.filter((r) => r.hospitalId === currentUser?.id);
-  const sentRequests = requests.filter((r) => r.status === 'Sent');
-  const acceptedRequests = hospitalRequests.filter((r) => r.status === 'Accepted');
+  const normalizeStatus = (status) => (status || '').toString().trim().toLowerCase();
+  const getRequestId = (request) => request.id || request._id;
+  const isMine = (request) => {
+    const currentId = (currentUser?.id || '').toString();
+    const hospitalId = (request.hospitalId || request.hospital || '').toString();
+    return Boolean(currentId) && hospitalId === currentId;
+  };
+
+  const hospitalRequests = requests.filter(isMine);
+  const sentRequests = hospitalRequests.filter((r) => ['sent', 'pending', 'accepted', 'in progress', 'in_progress'].includes(normalizeStatus(r.status)));
+  const acceptedRequests = hospitalRequests.filter((r) => normalizeStatus(r.status) === 'accepted');
   const hospitalAlerts = hospitalRequests
     .flatMap((request) => (request.hospitalNotifications || []).map((alert) => ({ ...alert, requestId: request.id })))
     .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
@@ -101,9 +109,9 @@ export default function HospitalDashboard() {
     .sort((a, b) => b.score - a.score);
 
   const handleConfirmDonation = (request) => {
-    completeRequest(request.id);
+    completeRequest(getRequestId(request));
     setCompletionStatus(
-      `Donation confirmed for ${request.bloodGroup} (${request.quantity} unit). Donor points are updated and donor is marked unavailable for 2 months.`
+      `Donation confirmed for ${request.bloodGroup} (${request.quantity} unit). Donor points are updated and donor is marked unavailable for 3 months.`
     );
     setTimeout(() => setCompletionStatus(null), 4000);
   };
@@ -112,7 +120,7 @@ export default function HospitalDashboard() {
     { label: 'Active Requests', value: sentRequests.length },
     { label: 'Available Donors', value: donors.filter((d) => d.available).length },
     { label: 'My Requests', value: hospitalRequests.length },
-    { label: 'Completed', value: requests.filter((r) => r.status === 'Completed').length },
+    { label: 'Completed', value: hospitalRequests.filter((r) => normalizeStatus(r.status) === 'completed').length },
   ];
 
   return (
@@ -151,7 +159,7 @@ export default function HospitalDashboard() {
         </div>
         <div className="surface-metric">
           <p className="text-sm text-gray-600 font-semibold uppercase">Completed</p>
-          <p className="text-3xl font-bold text-orange-600">{requests.filter((r) => r.status === 'Completed').length}</p>
+          <p className="text-3xl font-bold text-orange-600">{hospitalRequests.filter((r) => normalizeStatus(r.status) === 'completed').length}</p>
         </div>
       </div>
 
@@ -202,7 +210,7 @@ export default function HospitalDashboard() {
           <h2 className="text-2xl font-bold text-gray-900 mb-4">Accepted Donations Pending Hospital Confirmation</h2>
           <div className="grid gap-4">
             {acceptedRequests.map((req) => (
-              <div key={req.id} className="rounded-lg border border-blue-200 bg-blue-50 p-4">
+              <div key={getRequestId(req)} className="rounded-lg border border-blue-200 bg-blue-50 p-4">
                 <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                   <div>
                     <p className="font-semibold text-blue-900">
@@ -280,7 +288,7 @@ export default function HospitalDashboard() {
         ) : (
           <div className="grid gap-4">
             {hospitalRequests.map((req) => (
-              <RequestCard key={req.id} request={req} showActions={false} />
+              <RequestCard key={getRequestId(req)} request={req} showActions={false} />
             ))}
           </div>
         )}

@@ -226,9 +226,8 @@ const hospitalSchema = new mongoose.Schema({
 });
 
 // Pre-save middleware
-hospitalSchema.pre('save', function(next) {
+hospitalSchema.pre('save', function() {
   this.updatedAt = Date.now();
-  next();
 });
 
 // Calculate total blood inventory

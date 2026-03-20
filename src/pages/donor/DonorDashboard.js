@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import RequestCard from '../../components/RequestCard';
 import BadgeProgress from '../../components/BadgeProgress';
@@ -7,25 +7,60 @@ import Modal from '../../components/Modal';
 
 export default function DonorDashboard() {
   const { currentUser, donors, requests, acceptRequest, rejectRequest, setNotifications, setDonors } = useAuth();
-  const donor = donors.find((d) => d.id === currentUser?.id) || donors[0];
+  const donorFromList = donors.find((d) => (d.id || '').toString() === (currentUser?.id || '').toString());
+
+  const fallbackDonor = currentUser
+    ? {
+        id: currentUser.id,
+        name: currentUser.name || 'Donor',
+        age: currentUser.age || 18,
+        bloodGroup: currentUser.bloodGroup || 'Unknown',
+        location: currentUser.location || '',
+        phone: currentUser.phone || '',
+        email: currentUser.email || '',
+        contactPreference: 'both',
+        available: true,
+        points: currentUser.points || 0,
+        badges: currentUser.badges || [],
+        tokens: currentUser.tokens || 0,
+        donationHistory: currentUser.donationHistory || [],
+        cooldownActive: false,
+        nextEligibleDate: null,
+      }
+    : null;
+
+  const donor = donorFromList || fallbackDonor;
   const [showConsent, setShowConsent] = useState(false);
   const [selectedRequest, setSelectedRequest] = useState(null);
   const [showEditProfile, setShowEditProfile] = useState(false);
   const [editForm, setEditForm] = useState({ phone: donor?.phone || '', email: donor?.email || '' });
 
+  useEffect(() => {
+    if (!currentUser) return;
+    if ((currentUser.role || '').toLowerCase() !== 'donor') return;
+
+    const exists = donors.some((d) => (d.id || '').toString() === (currentUser.id || '').toString());
+    if (!exists && fallbackDonor) {
+      setDonors((prev) => [fallbackDonor, ...prev]);
+    }
+  }, [currentUser, donors, fallbackDonor, setDonors]);
+
   const normalizeText = (value) => (value || '').toString().trim().toLowerCase();
+  const normalizeStatus = (status) => (status || '').toString().trim().toLowerCase();
+  const getRequestId = (request) => request.id || request._id;
   const cooldownEndDate = donor?.nextEligibleDate ? new Date(donor.nextEligibleDate) : null;
   const isCooldownActive = Boolean(
     donor?.cooldownActive && cooldownEndDate && cooldownEndDate.getTime() > Date.now()
   );
 
   const availableRequests = requests.filter((r) => {
-    if (r.status !== 'Sent') return false;
+    const requestStatus = normalizeStatus(r.status);
+    if (!['sent', 'pending'].includes(requestStatus)) return false;
     if (isCooldownActive) return false;
     if (!donor?.available) return false;
     const bloodMatch = normalizeText(r.bloodGroup) === normalizeText(donor?.bloodGroup);
     const cityMatch = normalizeText(r.location) === normalizeText(donor?.location);
-    const alreadyRejected = (r.donorRejections || []).some((rejection) => rejection.donorId === donor?.id);
+    const alreadyRejected = (r.donorRejections || []).some((rejection) => (rejection.donorId || '').toString() === (donor?.id || '').toString());
     return bloodMatch && cityMatch && !alreadyRejected;
   });
 
@@ -33,8 +68,8 @@ export default function DonorDashboard() {
     .filter((r) => {
       const bloodMatch = normalizeText(r.bloodGroup) === normalizeText(donor?.bloodGroup);
       const cityMatch = normalizeText(r.location) === normalizeText(donor?.location);
-      const acceptedByMe = r.acceptedBy === donor?.id;
-      const rejectedByMe = (r.donorRejections || []).some((rejection) => rejection.donorId === donor?.id);
+      const acceptedByMe = (r.acceptedBy || '').toString() === (donor?.id || '').toString();
+      const rejectedByMe = (r.donorRejections || []).some((rejection) => (rejection.donorId || '').toString() === (donor?.id || '').toString());
       return (bloodMatch && cityMatch) || acceptedByMe || rejectedByMe;
     })
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
@@ -45,7 +80,7 @@ export default function DonorDashboard() {
   };
 
   const confirmConsent = () => {
-    acceptRequest({ requestId: selectedRequest.id, donorId: donor.id });
+    acceptRequest({ requestId: getRequestId(selectedRequest), donorId: donor.id });
     setDonors((ds) =>
       ds.map((d) =>
         d.id === donor.id
@@ -66,7 +101,7 @@ export default function DonorDashboard() {
         {
           id: Date.now(),
           type: 'warning',
-          text: `You can mark available after ${cooldownEndDate.toLocaleDateString()}. Recovery period is 2 months from donation date.`,
+          text: `You can mark available after ${cooldownEndDate.toLocaleDateString()}. Recovery period is 3 months from donation date.`,
         },
         ...n,
       ]);
@@ -81,7 +116,7 @@ export default function DonorDashboard() {
   };
 
   const handleReject = (request) => {
-    rejectRequest({ requestId: request.id, donorId: donor.id, reason: 'Donor rejected request' });
+    rejectRequest({ requestId: getRequestId(request), donorId: donor.id, reason: 'Donor rejected request' });
     setNotifications((n) => [
       { id: Date.now(), type: 'warning', text: 'Request declined. Hospital was notified.' },
       ...n,
@@ -106,6 +141,16 @@ export default function DonorDashboard() {
       ...n,
     ]);
   };
+
+  if (!donor) {
+    return (
+      <div className="space-y-8">
+        <div className="section-card border-l-4 border-yellow-500 bg-yellow-50">
+          <p className="font-semibold text-yellow-900">Donor profile not found for the logged-in account. Please log out and log in again.</p>
+        </div>
+      </div>
+    );
+  }
 
   const stats = [
     { label: 'Points', value: donor.points || 0 },
@@ -273,10 +318,10 @@ export default function DonorDashboard() {
         ) : (
           <div className="grid gap-4">
             {donorRequestTimeline.map((req) => {
-              const rejectedByMe = (req.donorRejections || []).some((rejection) => rejection.donorId === donor?.id);
-              const acceptedByMe = req.acceptedBy === donor?.id;
+              const rejectedByMe = (req.donorRejections || []).some((rejection) => (rejection.donorId || '').toString() === (donor?.id || '').toString());
+              const acceptedByMe = (req.acceptedBy || '').toString() === (donor?.id || '').toString();
               return (
-                <div key={`history-${req.id}`}>
+                <div key={`history-${getRequestId(req)}`}>
                   <RequestCard request={req} showActions={false} />
                   {(acceptedByMe || rejectedByMe) && (
                     <div className="mt-2 ml-2 text-xs font-semibold text-slate-600">
@@ -323,7 +368,7 @@ export default function DonorDashboard() {
           )}
 
           <p className="text-sm text-gray-700">
-            You will be marked unavailable for 2 months after a confirmed donation. Our team will contact you shortly with pickup details.
+            You will be marked unavailable for 3 months after a confirmed donation. Our team will contact you shortly with pickup details.
           </p>
 
           <div className="flex space-x-3 pt-4">

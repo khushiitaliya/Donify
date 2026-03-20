@@ -4,9 +4,37 @@ import { useAuth } from '../context/AuthContext';
 import RequestCard from '../components/RequestCard';
 
 export default function RequestsPage() {
-  const { requests, currentUser } = useAuth();
+  const { requests, donors, currentUser } = useAuth();
 
-  const activeRequests = requests.filter((r) => r.status !== 'Completed' && r.status !== 'Expired' && r.status !== 'Cancelled');
+  const normalizeStatus = (status) => (status || '').toString().trim().toLowerCase();
+  const normalizeText = (value) => (value || '').toString().trim().toLowerCase();
+  const getRequestId = (request) => request.id || request._id;
+
+  const role = normalizeText(currentUser?.role);
+  const activePool = requests.filter((r) => !['completed', 'expired', 'cancelled'].includes(normalizeStatus(r.status)));
+
+  let visibleRequests = activePool;
+
+  if (role === 'hospital') {
+    visibleRequests = activePool.filter((r) => {
+      const ownerId = (r.hospitalId || r.hospital || '').toString();
+      return ownerId === (currentUser?.id || '').toString();
+    });
+  } else if (role === 'donor') {
+    const donorProfile = donors.find((d) => (d.id || '').toString() === (currentUser?.id || '').toString());
+    const donorBloodGroup = donorProfile?.bloodGroup || currentUser?.bloodGroup;
+    const donorLocation = donorProfile?.location || currentUser?.location;
+
+    visibleRequests = activePool.filter((r) => {
+      const bloodMatch = normalizeText(r.bloodGroup) === normalizeText(donorBloodGroup);
+      const locationMatch = normalizeText(r.location) === normalizeText(donorLocation);
+      return bloodMatch && locationMatch;
+    });
+  } else if (role === 'admin') {
+    visibleRequests = activePool.filter((r) => Boolean(r.hospitalId || r.hospital || r.hospitalName));
+  }
+
+  const activeRequests = visibleRequests;
 
   return (
     <div className="space-y-8">
@@ -24,7 +52,7 @@ export default function RequestsPage() {
         </div>
       </section>
 
-      {currentUser?.role === 'Hospital' && (
+      {role === 'hospital' && (
         <div className="section-card border-l-4 border-red-500">
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div>
@@ -49,7 +77,7 @@ export default function RequestsPage() {
         <div className="grid gap-4">
           {activeRequests.map((request) => (
             <RequestCard
-              key={request.id}
+              key={getRequestId(request)}
               request={request}
               showActions={false}
             />

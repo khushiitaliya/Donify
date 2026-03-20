@@ -242,6 +242,8 @@ export const AuthProvider = ({ children }) => {
             age: payload.age,
             bloodGroup: payload.bloodGroup,
             location: payload.location,
+            phone: payload.contact || '',
+            email: payload.email || '',
             contact: payload.contact,
             lastDonationDate: payload.lastDonationDate || null,
             nextEligibleDate: null,
@@ -627,7 +629,7 @@ export const AuthProvider = ({ children }) => {
     }
 
     const completedAt = new Date().toISOString();
-    const nextEligibleDate = addMonthsToISOString(completedAt, 2);
+    const nextEligibleDate = addMonthsToISOString(completedAt, 3);
     const pointsAwarded = 10;
     const donorId = targetRequest.acceptedBy;
 

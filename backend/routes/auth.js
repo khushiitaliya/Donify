@@ -44,8 +44,16 @@ router.post('/register', [
       return res.status(400).json({ message: 'Location and blood group are required for donors' });
     }
 
-    if (role === 'hospital' && !phone) {
-      return res.status(400).json({ message: 'Phone number is required for hospitals' });
+    if (role === 'hospital' && (!phone || !location)) {
+      return res.status(400).json({ message: 'Phone number and location are required for hospitals' });
+    }
+
+    // Guard against orphan hospital records from previous failed registrations
+    if (role === 'hospital') {
+      const existingHospital = await Hospital.findOne({ email });
+      if (existingHospital) {
+        return res.status(400).json({ message: 'Hospital already exists with this email' });
+      }
     }
 
     // Create user
@@ -54,7 +62,7 @@ router.post('/register', [
       email,
       password,
       role,
-      phone: role === 'hospital' ? phone : undefined,
+      phone: phone || undefined,
       location: role === 'donor' ? location : undefined,
       bloodGroup: role === 'donor' ? bloodGroup : undefined
     });
@@ -63,21 +71,32 @@ router.post('/register', [
 
     // Create Hospital record if role is hospital
     if (role === 'hospital') {
-      const hospital = new Hospital({
-        userId: user._id,
-        name,
-        email,
-        phone,
-        location,
-        contactPerson: name, // Default to hospital name
-        contactPersonPhone: phone,
-        emergencyContact: name,
-        emergencyContactPhone: phone,
-        description: '',
-        hospitalType: 'Private'
-      });
-      await hospital.save();
-      console.log('Hospital record created:', hospital._id);
+      try {
+        const hospital = new Hospital({
+          userId: user._id,
+          name,
+          email,
+          phone,
+          location,
+          contactPerson: name,
+          contactPersonPhone: phone,
+          emergencyContact: name,
+          emergencyContactPhone: phone,
+          description: '',
+          hospitalType: 'Private'
+        });
+        await hospital.save();
+        console.log('Hospital record created:', hospital._id);
+      } catch (hospitalError) {
+        // Roll back user creation if hospital profile creation fails.
+        await User.findByIdAndDelete(user._id);
+
+        if (hospitalError?.code === 11000) {
+          return res.status(400).json({ message: 'Hospital already exists with this email' });
+        }
+
+        return res.status(500).json({ message: 'Failed to create hospital profile' });
+      }
     }
 
     // Generate token

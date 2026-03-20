@@ -55,20 +55,6 @@ export default function LoginPage() {
           <p className="max-w-xl text-sm leading-7 text-white/78 md:text-base">
             Sign in as donor, hospital, or admin to review active requests, donor readiness, and communication history.
           </p>
-          <div className="grid gap-4 sm:grid-cols-3">
-            <div className="metric-card">
-              <div className="text-xs uppercase tracking-[0.2em] text-white/65">Donor Demo</div>
-              <div className="mt-2 text-lg font-bold">john@example.com</div>
-            </div>
-            <div className="metric-card">
-              <div className="text-xs uppercase tracking-[0.2em] text-white/65">Hospital Demo</div>
-              <div className="mt-2 text-lg font-bold">city@hospital.com</div>
-            </div>
-            <div className="metric-card">
-              <div className="text-xs uppercase tracking-[0.2em] text-white/65">Admin Demo</div>
-              <div className="mt-2 text-lg font-bold">admin@donify.com</div>
-            </div>
-          </div>
         </div>
       </section>
 
